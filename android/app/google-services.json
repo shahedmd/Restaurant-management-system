@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "65078592075",
+    "project_id": "blue-bite-e8b42",
+    "storage_bucket": "blue-bite-e8b42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:65078592075:android:51503623d4aa15bbb803ce",
+        "android_client_info": {
+          "package_name": "com.example.bluebite"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqxVj6dFam1m3CvdDgU7p1usrcIKxK_2g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:65078592075:android:405483dade47a1feb803ce",
+        "android_client_info": {
+          "package_name": "com.example.restaurant_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqxVj6dFam1m3CvdDgU7p1usrcIKxK_2g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
