@@ -22,7 +22,7 @@ class LiveOrdersPage extends StatelessWidget {
       stream:
           FirebaseFirestore.instance
               .collection('orders')
-              .where('orderType', isEqualTo: 'Inhouse')
+              .where('orderType', whereIn: ['Inhouse', 'Prebooking'])
               .where('status', whereIn: ['pending', 'processing'])
               .orderBy('timestamp', descending: true)
               .snapshots(),
@@ -129,7 +129,6 @@ class LiveOrdersPage extends StatelessWidget {
                     ),
                   ],
                 ),
-                // <-- This is the important part:
                 onExpansionChanged: (expanded) async {
                   if (expanded && !isSeen) {
                     try {
@@ -137,9 +136,7 @@ class LiveOrdersPage extends StatelessWidget {
                           .collection('orders')
                           .doc(docId)
                           .update({'isSeen': true});
-                      // no need to set local state — StreamBuilder will pick up the change
                     } catch (e) {
-                      // optional: inform user if update failed
                       Get.snackbar(
                         'Error',
                         'Could not mark order seen: $e',

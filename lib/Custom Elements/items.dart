@@ -5,10 +5,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:restaurant_management/Orders/deliverdorder.dart';
 import 'package:restaurant_management/Orders/liveorder.dart';
-import 'package:restaurant_management/Orders/prebooked.dart';
 import 'package:restaurant_management/Sales/dailysales.dart';
 import 'package:restaurant_management/Sales/monthlysales.dart';
-
 import '../Expenses/daily.dart';
 import '../Expenses/monthly.dart';
 import '../Product & Admin/governing.dart';
@@ -73,8 +71,7 @@ class SidebarMenu extends StatelessWidget {
             collapsedIconColor: Colors.cyanAccent,
             children: [
               _menuTile("📡 Live Orders",  LiveOrdersPage()),
-              _menuTile("📅 Prebooked Orders", const PrebookedOrders()),
-              _menuTile("✅ Delivered Orders", const Deliverdorder()),
+              _menuTile("✅ Delivered Orders",  Deliverdorder()),
             ],
           ),
           _menuTile("📈 Daily Sales", const Dailysales()),
@@ -93,8 +90,8 @@ class SidebarMenu extends StatelessWidget {
               _menuTile("📅 Monthly Expenses", const MonthlyExpensesPage()),
             ],
           ),
-          _menuTile("🍽 Products", const ProductsPage()),
-          _menuTile("🎁 Offers", const Offer()),
+          _menuTile("🍽 Products",  ProductsPage()),
+          _menuTile("🎁 Offers",  Offer()),
         ],
       ),
     );

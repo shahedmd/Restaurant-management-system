@@ -17,132 +17,163 @@ class PrintingController extends GetxController {
   ) async {
     final pdf = pw.Document();
     final date = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
-    final List items = order['items'] ?? [];
+    final items = order['items'] ?? [];
 
-    // Use a font that supports ৳ symbol (Bengali)
+    // Use a clear, simple font
     final font = await PdfGoogleFonts.notoSansBengaliRegular();
+    final boldFont = await PdfGoogleFonts.notoSansBengaliBold();
 
     pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(20),
-        theme: pw.ThemeData.withFont(base: font),
-        build: (pw.Context context) => [
-          pw.Center(
-            child: pw.Column(
-              children: [
-                pw.Text(
-                  "Blue Bite Restaurant",
-                  style: pw.TextStyle(
-                    fontSize: 22,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.Text("Madaripur Sadar, Beside Lake (Selfie Tower)",
-                    style: pw.TextStyle(fontSize: 12)),
-                pw.SizedBox(height: 5),
-                pw.Text("Invoice", style: pw.TextStyle(fontSize: 16)),
-                pw.Divider(thickness: 1),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 10),
-
-          // Customer info
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      pw.Page(
+        pageFormat: const PdfPageFormat(80 * PdfPageFormat.mm, double.infinity,
+            marginAll: 5 * PdfPageFormat.mm), // ✅ 80mm paper width
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
+              // ===== HEADER =====
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      "Blue Bite Restaurant",
+                      style: pw.TextStyle(
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                        font: boldFont,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.Text(
+                      "Madaripur Sadar, Beside Lake (Selfie Tower)",
+                      style: pw.TextStyle(fontSize: 9, font: font),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text("☎ 017XXXXXXXX", style: pw.TextStyle(fontSize: 9, font: font)),
+                    pw.SizedBox(height: 5),
+                    pw.Text("Invoice", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                    pw.Divider(thickness: 0.8),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 3),
+
+              // ===== CUSTOMER INFO =====
+              pw.Text("Customer: ${customer['name'] ?? 'N/A'}", style: pw.TextStyle(font: font, fontSize: 9)),
+              pw.Text("Mobile: ${customer['mobile'] ?? 'N/A'}", style: pw.TextStyle(font: font, fontSize: 9)),
+              pw.Text("Date: $date", style: pw.TextStyle(font: font, fontSize: 9)),
+              pw.Divider(thickness: 0.8),
+
+              // ===== ITEMS HEADER =====
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text("Customer Name: ${customer['name'] ?? 'N/A'}"),
-                  pw.Text("Mobile: ${customer['mobile'] ?? 'N/A'}"),
+                  pw.Expanded(
+                      flex: 4,
+                      child: pw.Text("Item", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                  pw.Expanded(
+                      flex: 1,
+                      child: pw.Text("Qty", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                  pw.Expanded(
+                      flex: 2,
+                      child: pw.Text("Price", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                  pw.Expanded(
+                      flex: 2,
+                      child: pw.Text("Total", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
                 ],
               ),
-              pw.Text("Date: $date"),
-            ],
-          ),
-          pw.SizedBox(height: 10),
-          pw.Divider(),
+              pw.Divider(thickness: 0.6),
 
-          // Order details table
-          pw.Table.fromTextArray(
-            border: pw.TableBorder.all(width: 0.5),
-            cellAlignment: pw.Alignment.centerLeft,
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
-            headerHeight: 30,
-            cellHeight: 25,
-            headerStyle: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold, color: PdfColors.black),
-            cellStyle: const pw.TextStyle(fontSize: 12),
-            headers: ["#", "Item", "Qty", "Price", "Total"],
-            data: List<List<String>>.generate(
-              items.length,
-              (index) => [
-                (index + 1).toString(),
-                items[index]['name'] ?? '',
-                "${items[index]['quantity']}",
-                "৳${items[index]['price']}",
-                "৳${(items[index]['quantity'] ?? 1) * (items[index]['price'] ?? 0)}",
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 10),
-          pw.Divider(),
+              // ===== ITEMS LIST =====
+              ...items.map<pw.Widget>((item) {
+                final name = item['name'] ?? '';
+                final qty = item['quantity'] ?? 1;
+                final price = (item['price'] ?? 0).toDouble();
+                final total = qty * price;
 
-          // Total section
-          pw.Align(
-            alignment: pw.Alignment.centerRight,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Text("Subtotal: ৳${order['total'] ?? 0}",
-                    style: const pw.TextStyle(fontSize: 12)),
-                pw.Text("Discount: ৳$discount",
-                    style: const pw.TextStyle(fontSize: 12)),
-                pw.Divider(),
-                pw.Text(
-                  "Total Payable: ৳${discountedTotal.toStringAsFixed(2)}",
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Expanded(flex: 4, child: pw.Text(name, style: pw.TextStyle(fontSize: 9))),
+                      pw.Expanded(flex: 1, child: pw.Text("$qty", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 9))),
+                      pw.Expanded(
+                          flex: 2,
+                          child: pw.Text("BDT${price.toStringAsFixed(0)}",
+                              textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 9))),
+                      pw.Expanded(
+                          flex: 2,
+                          child: pw.Text("BDT${total.toStringAsFixed(0)}",
+                              textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 9))),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 30),
-          pw.Center(
-            child: pw.Text(
-              "Thank you for dining with Blue Bite Restaurant!",
-              style: pw.TextStyle(
-                fontSize: 12,
-                color: PdfColors.grey600,
+                );
+              }).toList(),
+
+              pw.Divider(thickness: 0.8),
+
+              // ===== TOTAL SECTION =====
+              pw.SizedBox(height: 5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text("Subtotal:", style: pw.TextStyle(font: font, fontSize: 10)),
+                  pw.Text("BDT${(order['total'] ?? 0).toStringAsFixed(2)}",
+                      style: pw.TextStyle(font: font, fontSize: 10)),
+                ],
               ),
-            ),
-          ),
-          pw.Center(
-            child: pw.Text(
-              "We hope to serve you again!",
-              style: const pw.TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text("Discount:", style: pw.TextStyle(font: font, fontSize: 10)),
+                  pw.Text("-BDT${discount.toStringAsFixed(2)}",
+                      style: pw.TextStyle(font: font, fontSize: 10)),
+                ],
+              ),
+              pw.Divider(thickness: 0.5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text("Total Payable:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                  pw.Text("BDT${discountedTotal.toStringAsFixed(2)}",
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                ],
+              ),
+              pw.SizedBox(height: 10),
+
+              // ===== FOOTER =====
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    pw.Divider(thickness: 0.5),
+                    pw.Text("Thank you for dining with us!",
+                        style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+                    pw.Text("We hope to serve you again soon!",
+                        style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+                    pw.SizedBox(height: 5),
+                    pw.Text("Powered by Blue Bite RMS",
+                        style: pw.TextStyle(fontSize: 8, color: PdfColors.grey400)),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    // Printing or Web preview
     final pdfBytes = await pdf.save();
 
     if (kIsWeb) {
-      // For Web: open PDF in a new tab
       final blob = html.Blob([pdfBytes], 'application/pdf');
       final url = html.Url.createObjectUrlFromBlob(blob);
       html.window.open(url, '_blank');
     } else {
-      // For Mobile/Desktop: use printing plugin
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: "BlueBite_Invoice",
       );
     }
   }
