@@ -9,6 +9,7 @@ import 'package:restaurant_management/Sales/dailysales.dart';
 import 'package:restaurant_management/Sales/monthlysales.dart';
 import '../Expenses/daily.dart';
 import '../Expenses/monthly.dart';
+import '../Product & Admin/Staff/staf.dart';
 import '../Product & Admin/governing.dart';
 import '../Product & Admin/offer.dart';
 import '../Product & Admin/products.dart';
@@ -61,7 +62,7 @@ class SidebarMenu extends StatelessWidget {
               child: Text("Homepage", style: TextStyle(color: Colors.white)),
             ),
           ),
-          ExpansionTile(
+          ExpansionTile( 
             title: Text(
               "🧾  Orders",
               style: TextStyle(color: Colors.white, fontSize: 14.sp),
@@ -76,7 +77,9 @@ class SidebarMenu extends StatelessWidget {
           ),
           _menuTile("📈 Daily Sales", const Dailysales()),
           _menuTile("📊 Monthly Sales", const Monthlysales()),
-          _menuTile("🏛 Governing Body", const GoverningBodyPage()),
+          _menuTile("🏛 Governing Body",  GoverningBodyPage()),
+                    _menuTile("🏛 Staff Member",  StaffListPage()),
+
           ExpansionTile(
             title: Text(
               "💰 Expenses",
@@ -86,8 +89,8 @@ class SidebarMenu extends StatelessWidget {
             collapsedIconColor: Colors.cyanAccent,
             childrenPadding: EdgeInsets.only(left: 20.w),
             children: [
-              _menuTile("📆 Daily Expenses", const DailyExpensesPage()),
-              _menuTile("📅 Monthly Expenses", const MonthlyExpensesPage()),
+              _menuTile("📆 Daily Expenses",  DailyExpensesPage()),
+              _menuTile("📅 Monthly Expenses",  MonthlyExpensesPage()),
             ],
           ),
           _menuTile("🍽 Products",  ProductsPage()),
