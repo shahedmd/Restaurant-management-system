@@ -2,7 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
+
 import 'package:restaurant_management/Orders/deliverdorder.dart';
 import 'package:restaurant_management/Orders/liveorder.dart';
 import 'package:restaurant_management/Sales/dailysales.dart';
@@ -24,90 +26,155 @@ class SidebarMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 250.w,
-      height: double.infinity,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+          colors: [
+            Color(0xFF0A1F44),
+            Color(0xFF0C2E69),
+            Color(0xFF0F3D85),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 10,
-            offset: const Offset(4, 0),
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 14,
+            offset: const Offset(5, 0),
           ),
         ],
       ),
       child: ListView(
         padding: EdgeInsets.symmetric(vertical: 20.h),
         children: [
-          /// Logo / Header
+          /// ===== HEADER =====
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 20.w),
             child: Text(
               "Admin Panel",
               style: TextStyle(
-                fontSize: 20.sp,
-                color: Colors.white,
+                fontSize: 22.sp,
                 fontWeight: FontWeight.bold,
+                color: Colors.white,
                 letterSpacing: 1.2,
               ),
             ),
           ),
-          SizedBox(height: 20.h),
-          _menuTile(
-            "🏠  Home",
-            Center(
-              child: Text("Homepage", style: TextStyle(color: Colors.white)),
-            ),
-          ),
-          ExpansionTile( 
-            title: Text(
-              "🧾  Orders",
-              style: TextStyle(color: Colors.white, fontSize: 14.sp),
-            ),
-            childrenPadding: EdgeInsets.only(left: 20.w),
-            iconColor: Colors.cyanAccent,
-            collapsedIconColor: Colors.cyanAccent,
-            children: [
-              _menuTile("📡 Live Orders",  LiveOrdersPage()),
-              _menuTile("✅ Delivered Orders",  Deliverdorder()),
-            ],
-          ),
-          _menuTile("📈 Daily Sales", const Dailysales()),
-          _menuTile("📊 Monthly Sales", const Monthlysales()),
-          _menuTile("🏛 Governing Body",  GoverningBodyPage()),
-                    _menuTile("🏛 Staff Member",  StaffListPage()),
 
-          ExpansionTile(
-            title: Text(
-              "💰 Expenses",
-              style: TextStyle(color: Colors.white, fontSize: 14.sp),
-            ),
-            iconColor: Colors.cyanAccent,
-            collapsedIconColor: Colors.cyanAccent,
-            childrenPadding: EdgeInsets.only(left: 20.w),
+          SizedBox(height: 25.h),
+
+          /// ===== MENU ITEMS =====
+
+          _menuTile(
+            icon: FontAwesomeIcons.houseChimney,
+            title: "Home",
+            page: Center(child: Text("Homepage", style: TextStyle(color: Colors.white))),
+          ),
+
+          _expansionGroup(
+            title: "Orders",
+            icon: FontAwesomeIcons.clipboardList,
             children: [
-              _menuTile("📆 Daily Expenses",  DailyExpensesPage()),
-              _menuTile("📅 Monthly Expenses",  MonthlyExpensesPage()),
+              _menuTile(icon: FontAwesomeIcons.satelliteDish, title: "Live Orders", page: LiveOrdersPage()),
+              _menuTile(icon: FontAwesomeIcons.check, title: "Delivered Orders", page: Deliverdorder()),
             ],
           ),
-          _menuTile("🍽 Products",  ProductsPage()),
-          _menuTile("🎁 Offers",  Offer()),
+
+          _menuTile(
+            icon: FontAwesomeIcons.chartLine,
+            title: "Daily Sales",
+            page: const Dailysales(),
+          ),
+
+          _menuTile(
+            icon: FontAwesomeIcons.chartSimple,
+            title: "Monthly Sales",
+            page: const Monthlysales(),
+          ),
+
+          _menuTile(
+            icon: FontAwesomeIcons.peopleGroup,
+            title: "Governing Body",
+            page: GoverningBodyPage(),
+          ),
+
+          _menuTile(
+            icon: FontAwesomeIcons.userTie,
+            title: "Staff Members",
+            page: StaffListPage(),
+          ),
+
+          _expansionGroup(
+            title: "Expenses",
+            icon: FontAwesomeIcons.moneyBillTransfer,
+            children: [
+              _menuTile(icon: FontAwesomeIcons.calendarDay, title: "Daily Expenses", page: DailyExpensesPage()),
+              _menuTile(icon: FontAwesomeIcons.calendarWeek, title: "Monthly Expenses", page: MonthlyExpensesPage()),
+            ],
+          ),
+
+          _menuTile(
+            icon: FontAwesomeIcons.utensils,
+            title: "Products",
+            page: ProductsPage(),
+          ),
+
+          _menuTile(
+            icon: FontAwesomeIcons.gift,
+            title: "Offers",
+            page: Offer(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _menuTile(String title, Widget page) {
+  /// ===========================
+  /// 🔹 TILE WIDGET
+  /// ===========================
+  Widget _menuTile({
+    required IconData icon,
+    required String title,
+    required Widget page,
+  }) {
     return ListTile(
+      leading: FaIcon(icon, color: Colors.white, size: 16.sp),
       title: Text(
         title,
         style: TextStyle(color: Colors.white, fontSize: 14.sp),
       ),
-      hoverColor: Colors.cyanAccent.withOpacity(0.2),
-      onTap: () =>Get.find<Controller>().changePage(page),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
+      hoverColor: Colors.white.withOpacity(0.10),
+      splashColor: Colors.white24,
+      onTap: () => Get.find<Controller>().changePage(page),
+    );
+  }
+
+  /// ===========================
+  /// 🔹 EXPANSION GROUP (Reusable)
+  /// ===========================
+  Widget _expansionGroup({
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Theme(
+      data: Theme.of(Get.context!).copyWith(
+        dividerColor: Colors.transparent,
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        iconColor: Colors.cyanAccent,
+        collapsedIconColor: Colors.cyanAccent,
+        tilePadding: EdgeInsets.symmetric(horizontal: 15.w),
+        childrenPadding: EdgeInsets.only(left: 20.w),
+        leading: FaIcon(icon, color: Colors.white, size: 16.sp),
+        title: Text(
+          title,
+          style: TextStyle(color: Colors.white, fontSize: 14.sp),
+        ),
+        children: children,
+      ),
     );
   }
 }

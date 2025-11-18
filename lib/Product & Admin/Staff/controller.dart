@@ -6,35 +6,56 @@ import 'package:pdf/widgets.dart' as pw;
 import 'dart:typed_data';
 
 class StaffController extends GetxController {
+ 
+@override
+void onInit() {
+  super.onInit();
+  loadStaff();
+}
+
   FirebaseFirestore db = FirebaseFirestore.instance;
 
   var staffList = [].obs;
 
   Future<void> loadStaff() async {
-    final snap = await db.collection("staff").get();
+    final snap = await db.collection("staff")
+    .orderBy("createdAt", descending: false)
+    .get();
     staffList.value =
         snap.docs.map((d) => {"id": d.id, ...d.data()}).toList();
   }
 
-  Future<void> addStaff(String name, String phone, DateTime joinDate) async {
-    await db.collection("staff").add({
-      "name": name,
-      "phone": phone,
-      "joiningDate": joinDate,
-      "createdAt": DateTime.now(),
-    });
-    loadStaff();
-  }
+Future<void> addStaff({
+  required String name,
+  required String phone,
+  required String nid,
+  required String des,
+  required int salary,
+  required DateTime joinDate,
+}) async {
+  await db.collection("staff").add({
+    "name": name,
+    "phone": phone,
+    "nid": nid,
+    "des": des,
+    "salary": salary,
+    "joiningDate": joinDate,
+    "createdAt": DateTime.now(),
+  });
 
-  Future<void> addSalary(
-      String staffId, double amount, String note, String month) async {
-    await db.collection("staff").doc(staffId).collection("salaries").add({
-      "amount": amount,
-      "note": note,
-      "month": month,
-      "date": DateTime.now(),
-    });
-  }
+  loadStaff();
+}
+
+
+Future<void> addSalary(
+    String staffId, double amount, String note, String month, DateTime date) async {
+  await db.collection("staff").doc(staffId).collection("salaries").add({
+    "amount": amount,
+    "note": note,
+    "month": month,
+    "date": date,
+  });
+}
 
   Stream<QuerySnapshot> loadSalaries(String staffId) {
     return db

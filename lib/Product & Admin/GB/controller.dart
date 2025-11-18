@@ -1,42 +1,69 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'dart:typed_data';
 
 class GBController extends GetxController {
-  FirebaseFirestore db = FirebaseFirestore.instance;
+ final db = FirebaseFirestore.instance;
 
-  var bodies = [].obs;
+  var bodies = <Map>[].obs;
 
+  /// Load all GB members, sorted by createdAt
   Future<void> loadBodies() async {
-    final snap = await db.collection("governingBody").get();
-    bodies.value = snap.docs.map((d) => {"id": d.id, ...d.data()}).toList();
+    final snap = await db
+        .collection("governingBody")
+        .orderBy("createdAt", descending: false) // first created comes first
+        .get();
+
+    bodies.value =
+        snap.docs.map((d) => {"id": d.id, ...d.data()}).toList();
   }
 
-  Future<void> addBody(String name, String phone) async {
+  /// Add a new GB member
+  Future<void> addBody({
+    required String name,
+    required String des,
+    required String nid,
+    required String phone,
+  }) async {
     await db.collection("governingBody").add({
       "name": name,
+      "des": des,
+      "nid": nid,
       "phone": phone,
       "createdAt": DateTime.now(),
     });
 
-    loadBodies();
+    loadBodies(); // reload after adding
   }
+  RxBool gbIsloading = false.obs;
 
   Future<void> addTransaction(
-      String id, double amount, String note, String type) async {
-    await db
-        .collection("governingBody")
-        .doc(id)
-        .collection("transactions")
-        .add({
-      "amount": amount,
-      "note": note,
-      "type": type,
-      "date": DateTime.now(),
-    });
+      String id, double amount, String note, String type, DateTime date) async {
+    try {
+      gbIsloading.value = true; // Start loading
+
+      await db
+          .collection("governingBody")
+          .doc(id)
+          .collection("transactions")
+          .add({
+        "amount": amount,
+        "note": note,
+        "type": type,
+        "date": date,
+      });
+    } catch (e) {
+      Get.snackbar("Error", e.toString(),
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.redAccent,
+          colorText: Colors.white);
+    } finally {
+      gbIsloading.value = false; // Stop loading
+    }
   }
 
   Stream<QuerySnapshot> loadTransactions(String id) {
