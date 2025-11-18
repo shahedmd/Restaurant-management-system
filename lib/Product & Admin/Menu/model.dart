@@ -1,34 +1,80 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+class MenuVariant {
+  final String size;
+  final double price;
 
-class MenuItemModel {
-  final String category;
-  final String imgUrl;
-  final String name;
-  final int price;
-
-  MenuItemModel({
-    required this.category,
-    required this.imgUrl,
-    required this.name,
+  MenuVariant({
+    required this.size,
     required this.price,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      "category": category,
-      "imgUrl": imgUrl,
-      "name": name,
-      "price": price,
-    };
+  factory MenuVariant.fromMap(Map<String, dynamic> data) {
+    return MenuVariant(
+      size: data['size'] ?? '',
+      price: (data['price'] ?? 0).toDouble(),
+    );
   }
 
-  factory MenuItemModel.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-     return MenuItemModel(
-    name: data['name'] ?? '',
-    category: data['category'] ?? '',
-    price: data['price'] ?? 0,
-    imgUrl: data['imgUrl'] ?? '',  
-  );
+  Map<String, dynamic> toMap() => {
+        'size': size,
+        'price': price,
+      };
+}
+
+class MenuItemModel {
+  final String name;
+  final String category;
+
+  // For single-price items
+  final double? price;
+
+  final String imgUrl;
+
+  // All available variants
+  final List<MenuVariant>? variants;
+
+  // 🔥 NEW: Selected variant when added to cart
+  MenuVariant? selectedVariant;
+
+  int quantity;
+
+  MenuItemModel({
+    required this.name,
+    required this.category,
+    this.price,
+    required this.imgUrl,
+    this.variants,
+    this.selectedVariant,
+    this.quantity = 1,
+  });
+
+  factory MenuItemModel.fromDoc(Map<String, dynamic> data) {
+    List<MenuVariant>? variantList;
+    if (data['variants'] != null) {
+      var v = data['variants'] as List<dynamic>;
+      variantList = v.map((e) => MenuVariant.fromMap(e)).toList();
+    }
+
+    return MenuItemModel(
+      name: data['name'] ?? '',
+      category: data['category'] ?? '',
+      price: data['price'] != null ? (data['price']).toDouble() : null,
+      imgUrl: data['imgUrl'] ?? '',
+      variants: variantList,
+      selectedVariant: null, // UI sets this later
+      quantity: data['quantity'] ?? 1,
+    );
   }
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'category': category,
+        'price': price,
+        'imgUrl': imgUrl,
+        'variants': variants?.map((v) => v.toMap()).toList(),
+
+        // Store selected variant only when saving cart/order
+        'selectedVariant': selectedVariant?.toMap(),
+
+        'quantity': quantity,
+      };
 }

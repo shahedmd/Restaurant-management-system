@@ -8,97 +8,131 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'controller.dart';
 
 void showCreateMenuDialog(BuildContext context) {
-  final MenuGetxCtrl menuController = Get.put(MenuGetxCtrl());
+  final MenuGetxCtrl controller = Get.find();
 
   final nameCtrl = TextEditingController();
   final priceCtrl = TextEditingController();
-
-  // Reactive variables
-  RxString selectedCategory = "Thai".obs;
-  Rx<Uint8List?> selectedImage = Rx<Uint8List?>(null);
+  RxString selectedCategory = (controller.categories.isNotEmpty ? controller.categories.first : "").obs;
+  RxList<Map<String, dynamic>> variants = <Map<String, dynamic>>[].obs;
+  Uint8List? selectedImage;
 
   showDialog(
     context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: Text("Create Menu", style: TextStyle(fontSize: 18.sp)),
+    builder: (context) => Obx(
+      () => AlertDialog(
+        title: const Text("Create Menu Item"),
         content: SizedBox(
-          width: 350.w,
-          child: Obx(() {
-            return Column(
+          width: 400.w,
+          child: SingleChildScrollView(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // CATEGORY DROPDOWN
+                // ---------------- CATEGORY DROPDOWN ----------------
                 DropdownButton<String>(
-                  value: selectedCategory.value,
-                  items: const [
-                    DropdownMenuItem(value: "Thai", child: Text("Thai")),
-                    DropdownMenuItem(value: "Fastfood", child: Text("Fastfood")),
-                    DropdownMenuItem(value: "Chinese", child: Text("Chinese")),
-                    DropdownMenuItem(value: "Indian", child: Text("Indian")),
-                                        DropdownMenuItem(value: "Drink", child: Text("Drink")),
-
-                  ],
-                  onChanged: (value) {
-                    selectedCategory.value = value!;
-                  },
+                  value: selectedCategory.value.isNotEmpty ? selectedCategory.value : null,
+                  items: controller.categories
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (val) => selectedCategory.value = val ?? "",
+                  hint: const Text("Select category"),
                 ),
-
                 SizedBox(height: 10.h),
 
-                // NAME
+                // ---------------- NAME ----------------
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: "Food Name"),
+                  decoration: const InputDecoration(labelText: "Item Name"),
                 ),
-
                 SizedBox(height: 10.h),
 
-                // PRICE
+                // ---------------- SINGLE PRICE ----------------
                 TextField(
                   controller: priceCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: "Price"),
+                  decoration: const InputDecoration(labelText: "Price (if no variants)"),
                 ),
+                SizedBox(height: 10.h),
 
-                SizedBox(height: 15.h),
-
-                // PICK IMAGE
-                ElevatedButton(
-                  onPressed: () async {
-                    final img = await menuController.pickImageWeb();
-                    if (img != null) {
-                      selectedImage.value = img;
-                    }
-                  },
-                  child: const Text("Pick Image"),
+                // ---------------- VARIANTS ----------------
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Variants"),
+                    ElevatedButton(
+                      onPressed: () {
+                        variants.add({"size": "", "price": 0});
+                      },
+                      child: const Text("Add"),
+                    ),
+                  ],
                 ),
+                ...variants.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final v = entry.value;
+                  final sizeCtrl = TextEditingController(text: v["size"]);
+                  final priceCtrlVar = TextEditingController(text: v["price"].toString());
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: sizeCtrl,
+                          decoration: const InputDecoration(labelText: "Size"),
+                          onChanged: (val) => v["size"] = val,
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrlVar,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: "Price"),
+                          onChanged: (val) => v["price"] = int.tryParse(val) ?? 0,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => variants.removeAt(index),
+                      )
+                    ],
+                  );
+                }),
 
                 SizedBox(height: 10.h),
 
-                // IMAGE PREVIEW
-                if (selectedImage.value != null)
-                  Image.memory(selectedImage.value!, height: 120.h),
+                // ---------------- IMAGE ----------------
+                ElevatedButton(
+                  onPressed: () async {
+                    final img = await controller.pickImageWeb();
+                    if (img != null) selectedImage = img;
+                  },
+                  child: const Text("Select Image"),
+                ),
+                SizedBox(height: 10.h),
+                if (selectedImage != null) Image.memory(selectedImage!, height: 120.h),
               ],
-            );
-          }),
+            ),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("Cancel"),
           ),
-
           ElevatedButton(
             onPressed: () async {
-              if (selectedImage.value == null) return;
+              if (nameCtrl.text.isEmpty || (priceCtrl.text.isEmpty && variants.isEmpty) || selectedImage == null) {
+                Get.snackbar("Error", "Please fill all required fields and select an image");
+                return;
+              }
 
-              await menuController.createItem(
-                collection: "menu",
-                category: selectedCategory.value,
+              await controller.createItem(
                 name: nameCtrl.text.trim(),
-                price: int.parse(priceCtrl.text.trim()),
-                imageBytes: selectedImage.value!,
+                price: variants.isEmpty ? int.tryParse(priceCtrl.text.trim()) : null,
+                variants: variants.isNotEmpty ? variants.toList() : null,
+                imageBytes: selectedImage!,
+                category: selectedCategory.value,
+                collection: "menu",
               );
 
               Navigator.pop(context);
@@ -106,7 +140,7 @@ void showCreateMenuDialog(BuildContext context) {
             child: const Text("Create"),
           ),
         ],
-      );
-    },
+      ),
+    ),
   );
 }

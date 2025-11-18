@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:restaurant_management/Product & Admin/Menu/controller.dart';
+import 'package:restaurant_management/Product%20&%20Admin/Menu/controller.dart';
 
 import 'Menu/dialog.dart';
 import 'Menu/editdialog.dart';
@@ -22,7 +22,6 @@ class ProductsPage extends StatelessWidget {
         onPressed: () => showCreateMenuDialog(context),
         child: const Icon(Icons.add),
       ),
-
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -34,18 +33,16 @@ class ProductsPage extends StatelessWidget {
             child: TextField(
               onChanged: (value) {
                 controller.searchQuery.value = value;
-                controller.applyFilter();    
+                controller.applyFilter();
               },
               decoration: InputDecoration(
                 hintText: "Search items…",
                 hintStyle: TextStyle(fontSize: 14.sp, color: Colors.grey),
                 prefixIcon: Icon(Icons.search, size: 22.sp, color: Colors.grey),
-
                 contentPadding: EdgeInsets.symmetric(
                   vertical: 12.h,
                   horizontal: 15.w,
                 ),
-
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.r),
                   borderSide: BorderSide(
@@ -62,21 +59,17 @@ class ProductsPage extends StatelessWidget {
               ),
             ),
           ),
-
           SizedBox(height: 20.h),
 
-          // STREAM fetch updates filtered list
-          StreamBuilder(
-            stream: controller.fetchItems(collection: "menu"),
-            builder: (context, snapshot) {
-              return Expanded(
-                child: Padding(
+          // ---------------- STREAM fetch ----------------
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: controller.fetchItems(collection: "menu"),
+              builder: (context, snapshot) {
+                return Padding(
                   padding: EdgeInsets.all(15.w),
-
-                  // ---------------- FILTERED UI ----------------
                   child: Obx(() {
                     final list = controller.filteredItems;
-
                     if (list.isEmpty) {
                       return Center(
                         child: Text(
@@ -90,17 +83,19 @@ class ProductsPage extends StatelessWidget {
                       child: Wrap(
                         spacing: 15.w,
                         runSpacing: 15.h,
-                        children: list.map((doc) {
-                          final item =
-                              MenuItemModel.fromDoc(doc); // convert only here
-                          return _menuCard( doc, item);
-                        }).toList(),
+                        children:
+                            list.map((doc) {
+                              final item = MenuItemModel.fromDoc(
+                                doc.data() as Map<String, dynamic>,
+                              );
+                              return _menuCard(doc, item);
+                            }).toList(),
                       ),
                     );
                   }),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -109,112 +104,121 @@ class ProductsPage extends StatelessWidget {
 
   // ---------------- MENU CARD ----------------
   Widget _menuCard(QueryDocumentSnapshot doc, MenuItemModel item) {
-  final MenuGetxCtrl controller = Get.find();
+    final MenuGetxCtrl controller = Get.find();
 
-  return Container(
-    width: 180.w,
-    padding: EdgeInsets.all(10.w),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(12.r),
-      color: Colors.white,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black12,
-          blurRadius: 6.r,
-          offset: Offset(0, 3.h),
-        ),
-      ],
-    ),
-    child: Stack(
-      children: [
-        // ---------------- PRODUCT CONTENT ----------------
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10.r),
-              child: Image.network(
-                item.imgUrl,
-                height: 180.h,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              item.name,
-              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
-            ),
-            Text(
-              item.category,
-              style: TextStyle(fontSize: 14.sp, color: Colors.grey),
-            ),
-            SizedBox(height: 5.h),
-            Text(
-              "৳ ${item.price}",
-              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+    // Determine the displayed price: use selectedVariant if exists, else single price
+    final displayPrice = item.selectedVariant?.price ?? item.price ?? 0;
 
-        // ---------------- EDIT & DELETE BUTTONS ----------------
-        Positioned(
-          top: 0,
-          right: 0,
-          child: Row(
+    return Container(
+      width: 180.w,
+      padding: EdgeInsets.all(10.w),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12.r),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6.r,
+            offset: Offset(0, 3.h),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Edit button
-              InkWell(
-                onTap: () => showEditMenuDialog(Get.context!, doc),
-                child: Container(
-                  padding: EdgeInsets.all(6.w),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.edit, size: 18.sp, color: Colors.white),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10.r),
+                child: Image.network(
+                  item.imgUrl,
+                  height: 180.h,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
                 ),
               ),
-              SizedBox(width: 5.w),
-              // Delete button
-              InkWell(
-                onTap: () async {
-                  bool confirm = await showDialog(
-                    context: Get.context!,
-                    builder: (context) => AlertDialog(
-                      title: const Text("Confirm Delete"),
-                      content: const Text("Are you sure you want to delete this item?"),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text("Cancel"),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text("Delete"),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm) {
-                    await controller.deleteItem(collection: "menu", docId :  doc.id); // call delete function
-                  }
-                },
-                child: Container(
-                  padding: EdgeInsets.all(6.w),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.delete, size: 18.sp, color: Colors.white),
-                ),
+              SizedBox(height: 8.h),
+              Text(
+                item.name,
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+              ),
+              Text(
+                item.category,
+                style: TextStyle(fontSize: 14.sp, color: Colors.grey),
+              ),
+              SizedBox(height: 5.h),
+              Text(
+                item.variants != null && item.variants!.isNotEmpty
+                    ? "From: ৳ ${item.variants!.map((v) => v.price).reduce((a, b) => a < b ? a : b)}"
+                    : "৳ $displayPrice",
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
               ),
             ],
           ),
-        ),
-      ],
-    ),
-  );
-}
 
+          // ---------------- EDIT & DELETE ----------------
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Row(
+              children: [
+                // Edit button
+                InkWell(
+                  onTap: () => showEditMenuDialog(Get.context!, doc),
+                  child: Container(
+                    padding: EdgeInsets.all(6.w),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.edit, size: 18.sp, color: Colors.white),
+                  ),
+                ),
+                SizedBox(width: 5.w),
+                // Delete button
+                InkWell(
+                  onTap: () async {
+                    bool confirm = await showDialog(
+                      context: Get.context!,
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text("Confirm Delete"),
+                            content: const Text(
+                              "Are you sure you want to delete this item?",
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text("Cancel"),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text("Delete"),
+                              ),
+                            ],
+                          ),
+                    );
+                    if (confirm) {
+                      await controller.deleteItem(
+                        collection: "menu",
+                        docId: doc.id,
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: EdgeInsets.all(6.w),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.delete, size: 18.sp, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
