@@ -128,7 +128,7 @@ void showEditMenuDialog(BuildContext context, QueryDocumentSnapshot doc) {
                               ],
                             ),
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
 

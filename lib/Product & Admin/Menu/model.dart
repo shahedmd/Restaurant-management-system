@@ -24,15 +24,12 @@ class MenuItemModel {
   final String name;
   final String category;
 
-  // For single-price items
   final double? price;
 
   final String imgUrl;
 
-  // All available variants
   final List<MenuVariant>? variants;
 
-  // 🔥 NEW: Selected variant when added to cart
   MenuVariant? selectedVariant;
 
   int quantity;
