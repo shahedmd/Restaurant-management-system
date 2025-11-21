@@ -1,9 +1,10 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'controller.dart';
 
@@ -12,7 +13,8 @@ void showCreateMenuDialog(BuildContext context) {
 
   final nameCtrl = TextEditingController();
   final priceCtrl = TextEditingController();
-  RxString selectedCategory = (controller.categories.isNotEmpty ? controller.categories.first : "").obs;
+  RxString selectedCategory =
+      (controller.categories.isNotEmpty ? controller.categories.first : "").obs;
   RxList<Map<String, dynamic>> variants = <Map<String, dynamic>>[].obs;
   Uint8List? selectedImage;
 
@@ -20,108 +22,220 @@ void showCreateMenuDialog(BuildContext context) {
     context: context,
     builder: (context) => Obx(
       () => AlertDialog(
-        title: const Text("Create Menu Item"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+        backgroundColor: Colors.white,
+        insetPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
+
+        titlePadding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 10.h),
+        title: Row(
+          children: [
+            Icon(FontAwesomeIcons.plusCircle, color: Colors.blue.shade600, size: 20.sp),
+            SizedBox(width: 10.w),
+            Text(
+              "Create Menu Item",
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.blue.shade700,
+              ),
+            ),
+          ],
+        ),
+
         content: SizedBox(
-          width: 400.w,
+          width: 420.w,
           child: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ---------------- CATEGORY DROPDOWN ----------------
-                DropdownButton<String>(
-                  value: selectedCategory.value.isNotEmpty ? selectedCategory.value : null,
-                  items: controller.categories
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (val) => selectedCategory.value = val ?? "",
-                  hint: const Text("Select category"),
-                ),
-                SizedBox(height: 10.h),
 
-                // ---------------- NAME ----------------
-                TextField(
+                /// CATEGORY
+                Text("Category",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.sp,
+                        color: Colors.blue.shade600)),
+                SizedBox(height: 6.h),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12.w),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16.r),
+                    color: const Color(0xFFEAF3FF),
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                        color: Colors.black.withOpacity(0.08),
+                      ),
+                    ],
+                  ),
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    value: selectedCategory.value.isNotEmpty ? selectedCategory.value : null,
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.blue.shade600),
+                    items: controller.categories
+                        .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c, style: TextStyle(fontSize: 14.sp)),
+                            ))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) selectedCategory.value = val;
+                    },
+                  ),
+                ),
+                SizedBox(height: 20.h),
+
+                /// NAME INPUT
+                _inputBox(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: "Item Name"),
+                  label: "Item Name",
+                  icon: FontAwesomeIcons.bowlFood,
                 ),
-                SizedBox(height: 10.h),
+                SizedBox(height: 20.h),
 
-                // ---------------- SINGLE PRICE ----------------
-                TextField(
+                /// SINGLE PRICE INPUT
+                _inputBox(
                   controller: priceCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: "Price (if no variants)"),
+                  label: "Price (if no variants)",
+                  icon: FontAwesomeIcons.tag,
+                  keyboardNumber: true,
                 ),
-                SizedBox(height: 10.h),
+                SizedBox(height: 20.h),
 
-                // ---------------- VARIANTS ----------------
+                /// VARIANTS
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("Variants"),
-                    ElevatedButton(
+                    Text("Variants",
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15.sp,
+                            color: Colors.blue.shade700)),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade50,
+                        foregroundColor: Colors.blue.shade700,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14.r)),
+                      ),
                       onPressed: () {
                         variants.add({"size": "", "price": 0});
                       },
-                      child: const Text("Add"),
+                      icon: Icon(FontAwesomeIcons.plus, size: 14.sp),
+                      label: Text("Add Variant", style: TextStyle(fontSize: 13.sp)),
                     ),
                   ],
                 ),
+                SizedBox(height: 10.h),
+
+                /// VARIANT CARDS
                 ...variants.asMap().entries.map((entry) {
                   final index = entry.key;
                   final v = entry.value;
                   final sizeCtrl = TextEditingController(text: v["size"]);
                   final priceCtrlVar = TextEditingController(text: v["price"].toString());
 
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: sizeCtrl,
-                          decoration: const InputDecoration(labelText: "Size"),
-                          onChanged: (val) => v["size"] = val,
+                  return Container(
+                    padding: EdgeInsets.all(12.w),
+                    margin: EdgeInsets.only(bottom: 12.h),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEAF3FF),
+                      borderRadius: BorderRadius.circular(18.r),
+                      boxShadow: [
+                        BoxShadow(
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                          color: Colors.black.withOpacity(0.08),
                         ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: TextField(
-                          controller: priceCtrlVar,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: "Price"),
-                          onChanged: (val) => v["price"] = int.tryParse(val) ?? 0,
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _inputBox(
+                            controller: sizeCtrl,
+                            label: "Size",
+                            icon: FontAwesomeIcons.ruler,
+                            onChanged: (val) => v["size"] = val,
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => variants.removeAt(index),
-                      )
-                    ],
+                        SizedBox(width: 10.w),
+                        Expanded(
+                          child: _inputBox(
+                            controller: priceCtrlVar,
+                            label: "Price",
+                            icon: FontAwesomeIcons.tag,
+                            keyboardNumber: true,
+                            onChanged: (val) => v["price"] = int.tryParse(val) ?? 0,
+                          ),
+                        ),
+                        SizedBox(width: 6.w),
+                        GestureDetector(
+                          onTap: () => variants.removeAt(index),
+                          child: Container(
+                            padding: EdgeInsets.all(8.w),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(FontAwesomeIcons.xmark, size: 14.sp, color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 }),
 
-                SizedBox(height: 10.h),
+                SizedBox(height: 20.h),
 
-                // ---------------- IMAGE ----------------
-                ElevatedButton(
+                /// IMAGE PICKER
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 20.w),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+                    elevation: 3,
+                  ),
                   onPressed: () async {
                     final img = await controller.pickImageWeb();
                     if (img != null) selectedImage = img;
+                    (context as Element).markNeedsBuild();
                   },
-                  child: const Text("Select Image"),
+                  icon: const Icon(FontAwesomeIcons.image, color: Colors.white),
+                  label: Text("Select Image", style: TextStyle(color: Colors.white)),
                 ),
-                SizedBox(height: 10.h),
-                if (selectedImage != null) Image.memory(selectedImage!, height: 120.h),
+
+                SizedBox(height: 12.h),
+                if (selectedImage != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16.r),
+                    child: Image.memory(selectedImage!, height: 160.h, fit: BoxFit.cover),
+                  ),
               ],
             ),
           ),
         ),
+
+        actionsPadding: EdgeInsets.only(right: 20.w, bottom: 12.h),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            child: Text("Cancel", style: TextStyle(color: Colors.red, fontSize: 14.sp)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700,
+              padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 12.h),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
+              elevation: 2,
+            ),
             onPressed: () async {
-              if (nameCtrl.text.isEmpty || (priceCtrl.text.isEmpty && variants.isEmpty) || selectedImage == null) {
+              if (nameCtrl.text.isEmpty ||
+                  (priceCtrl.text.isEmpty && variants.isEmpty) ||
+                  selectedImage == null) {
                 Get.snackbar("Error", "Please fill all required fields and select an image");
                 return;
               }
@@ -137,9 +251,42 @@ void showCreateMenuDialog(BuildContext context) {
 
               Navigator.pop(context);
             },
-            child: const Text("Create"),
+            child: Text("Create", style: TextStyle(fontSize: 14.sp, color: Colors.white)),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+/// COMPONENT: BEAUTIFUL INPUT BOX
+Widget _inputBox({
+  required TextEditingController controller,
+  required String label,
+  required IconData icon,
+  bool keyboardNumber = false,
+  Function(String)? onChanged,
+}) {
+  return TextField(
+    controller: controller,
+    keyboardType: keyboardNumber ? TextInputType.number : TextInputType.text,
+    onChanged: onChanged,
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 16.sp, color: Colors.blue.shade600),
+      filled: true,
+      fillColor: const Color(0xFFEAF3FF),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16.r),
+        borderSide: BorderSide(color: Colors.blue.shade200),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16.r),
+        borderSide: BorderSide(color: Colors.blue.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16.r),
+        borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
       ),
     ),
   );

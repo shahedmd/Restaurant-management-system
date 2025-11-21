@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
-
 import 'package:restaurant_management/Orders/deliverdorder.dart';
 import 'package:restaurant_management/Orders/liveorder.dart';
 import 'package:restaurant_management/Sales/dailysales.dart';
 import 'package:restaurant_management/Sales/monthlysales.dart';
 import '../Expenses/daily.dart';
 import '../Expenses/monthly.dart';
+import '../Product & Admin/Menu/controller.dart';
 import '../Product & Admin/Staff/staf.dart';
+import '../Product & Admin/category.dart';
 import '../Product & Admin/governing.dart';
 import '../Product & Admin/offer.dart';
 import '../Product & Admin/products.dart';
@@ -21,6 +22,8 @@ class SidebarMenu extends StatelessWidget {
   SidebarMenu({super.key});
 
   final Controller menuController = Get.put(Controller());
+  final controller = Get.put(MenuGetxCtrl());
+
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +126,13 @@ class SidebarMenu extends StatelessWidget {
             icon: FontAwesomeIcons.gift,
             title: "Offers",
             page: Offer(),
+          ),
+
+          _menuTile(
+            icon: FontAwesomeIcons.productHunt,
+            title: "Category",
+            page: CategoryPage(controller)
+
           ),
         ],
       ),

@@ -5,9 +5,16 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import '../../Expenses/Daily/controller.dart';
 import 'controller.dart';
 
-void addSalaryDialog(StaffController controller, String staffId) {
+final ExpensesController expensesController = Get.put(ExpensesController());
+
+void addSalaryDialog(
+  StaffController controller,
+  String staffId,
+  String stafname,
+) {
   final amountC = TextEditingController();
   final noteC = TextEditingController();
   final monthC = TextEditingController();
@@ -23,14 +30,14 @@ void addSalaryDialog(StaffController controller, String staffId) {
     content: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
         /// Amount
         Padding(
           padding: EdgeInsets.symmetric(vertical: 6.h),
           child: TextField(
             controller: amountC,
             keyboardType: TextInputType.number,
-            textAlignVertical: TextAlignVertical.center, // <-- Fix vertical align
+            textAlignVertical:
+                TextAlignVertical.center, // <-- Fix vertical align
             decoration: InputDecoration(
               prefixIcon: const Padding(
                 padding: EdgeInsets.all(12.0), // uniform padding
@@ -40,7 +47,10 @@ void addSalaryDialog(StaffController controller, String staffId) {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10.r),
               ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12.w,
+                vertical: 14.h,
+              ),
             ),
           ),
         ),
@@ -54,13 +64,19 @@ void addSalaryDialog(StaffController controller, String staffId) {
             decoration: InputDecoration(
               prefixIcon: const Padding(
                 padding: EdgeInsets.all(12.0),
-                child: FaIcon(FontAwesomeIcons.calendarAlt, color: Colors.blueAccent),
+                child: FaIcon(
+                  FontAwesomeIcons.calendarAlt,
+                  color: Colors.blueAccent,
+                ),
               ),
               hintText: "Month (e.g. January)",
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10.r),
               ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12.w,
+                vertical: 14.h,
+              ),
             ),
           ),
         ),
@@ -74,69 +90,84 @@ void addSalaryDialog(StaffController controller, String staffId) {
             decoration: InputDecoration(
               prefixIcon: const Padding(
                 padding: EdgeInsets.all(12.0),
-                child: FaIcon(FontAwesomeIcons.stickyNote, color: Colors.blueAccent),
+                child: FaIcon(
+                  FontAwesomeIcons.stickyNote,
+                  color: Colors.blueAccent,
+                ),
               ),
               hintText: "Note",
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10.r),
               ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 14.h),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12.w,
+                vertical: 14.h,
+              ),
             ),
           ),
         ),
 
         /// Date Picker
         SizedBox(height: 10.h),
-        Obx(() => Container(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(10.r),
+        Obx(
+          () => Container(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Row(
+              crossAxisAlignment:
+                  CrossAxisAlignment.center, // <-- Align vertically
+              children: [
+                const FaIcon(
+                  FontAwesomeIcons.calendarCheck,
+                  color: Colors.blueAccent,
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: Text(
+                    selectedDate.value != null
+                        ? DateFormat('dd MMM yyyy').format(selectedDate.value!)
+                        : "Pick Salary Date",
+                    style: TextStyle(fontSize: 14.sp, color: Colors.black87),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: Get.context!,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) {
+                      selectedDate.value = picked; // Update reactive variable
+                    }
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12.w,
+                      vertical: 6.h,
+                    ),
+                    minimumSize: Size(0, 0), // remove default min size
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    "Select",
+                    style: TextStyle(color: Colors.blueAccent, fontSize: 14.sp),
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center, // <-- Align vertically
-            children: [
-              const FaIcon(FontAwesomeIcons.calendarCheck, color: Colors.blueAccent),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: Text(
-                  selectedDate.value != null
-                      ? DateFormat('dd MMM yyyy').format(selectedDate.value!)
-                      : "Pick Salary Date",
-                  style: TextStyle(fontSize: 14.sp, color: Colors.black87),
-                ),
-              ),
-              TextButton(
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: Get.context!,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) {
-                    selectedDate.value = picked; // Update reactive variable
-                  }
-                },
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                  minimumSize: Size(0, 0), // remove default min size
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  "Select",
-                  style: TextStyle(color: Colors.blueAccent, fontSize: 14.sp),
-                ),
-              ),
-            ],
-          ),
-        )),
+        ),
       ],
     ),
     textConfirm: "Save",
     confirmTextColor: Colors.white,
     buttonColor: Colors.blueAccent,
-    onConfirm: () {
+    onConfirm: () async {
       if (amountC.text.isEmpty ||
           monthC.text.isEmpty ||
           selectedDate.value == null) {
@@ -149,12 +180,19 @@ void addSalaryDialog(StaffController controller, String staffId) {
         return;
       }
 
-      controller.addSalary(
+      await controller.addSalary(
         staffId,
         double.parse(amountC.text),
         noteC.text,
         monthC.text,
         selectedDate.value!,
+      );
+
+      await expensesController.addDailyExpense(
+        stafname,
+        int.parse(amountC.text),
+        note: noteC.text,
+        date: selectedDate.value,
       );
       Get.back();
     },

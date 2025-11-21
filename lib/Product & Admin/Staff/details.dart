@@ -49,7 +49,7 @@ class StaffDetailsPage extends StatelessWidget {
 
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.blueAccent,
-        onPressed: () => addSalaryDialog(controller, staffId),
+        onPressed: () => addSalaryDialog(controller, staffId,  name),
         child: const FaIcon(FontAwesomeIcons.plus, color: Colors.white),
       ),
 
