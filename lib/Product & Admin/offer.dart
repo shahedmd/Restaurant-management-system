@@ -19,6 +19,12 @@ class Offer extends StatelessWidget {
         child: const Icon(Icons.add),
       ),
 
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text("Offers", style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color.fromARGB(255, 2, 41, 87),
+      ),
+
       body: SizedBox(
         width: double.infinity,
         child: Column(

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import 'Custom Elements/items.dart';
 import 'controller/menucontroller.dart';
+import 'over.dart';
 
 class AdminHomepage extends StatefulWidget {
   const AdminHomepage({super.key});
@@ -29,15 +30,7 @@ class _AdminHomepageState extends State<AdminHomepage> {
               child: Obx(
                 () =>
                     menuController.selectedPage.value ??
-                    Center(
-                      child: Text(
-                        "Welcome to Restaurant Admin Dashboard",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                   TodayOverviewPage()
               ),
             ),
           ),

@@ -26,7 +26,7 @@ class GoverningBodyPage extends StatelessWidget {
         centerTitle: true,
         title: Text(
           "Governing Body Members",
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w600, color: Colors.white),
         ),
       ),
       floatingActionButton: FloatingActionButton(

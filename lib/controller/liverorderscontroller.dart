@@ -5,7 +5,25 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class LiveOrdersController extends GetxController {
-  RxSet<String> notifiedOrders = <String>{}.obs; // store only new unseen order IDs temporarily
+  RxSet<String> notifiedOrders = <String>{}.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _listenOrders(); // call your Firestore subscription here
+  }
+
+  void _listenOrders() {
+    FirebaseFirestore.instance
+        .collection('orders')
+        .where('orderType', whereIn: ['Inhouse', 'Prebooking'])
+        .where('status', whereIn: ['pending', 'processing'])
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      checkForNewOrders(snapshot.docs); // pass snapshot docs to your existing method
+    });
+  }
 
   void checkForNewOrders(List<QueryDocumentSnapshot> orders) {
     for (var order in orders) {
@@ -13,7 +31,6 @@ class LiveOrdersController extends GetxController {
       final data = order.data() as Map<String, dynamic>;
       final bool isSeen = data['isSeen'] ?? false;
 
-      // Only notify for orders not seen by admin AND not yet notified this session
       if (!isSeen && !notifiedOrders.contains(docId)) {
         Get.snackbar(
           "🛎️ New Order!",
@@ -22,7 +39,7 @@ class LiveOrdersController extends GetxController {
           backgroundColor: Colors.green.withOpacity(0.9),
           colorText: Colors.white,
           isDismissible: true,
-          duration: null, // stays until admin closes
+          duration: null,
           mainButton: TextButton(
             onPressed: () => Get.back(),
             child: const Text("Close", style: TextStyle(color: Colors.white)),

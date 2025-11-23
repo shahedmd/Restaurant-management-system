@@ -10,6 +10,8 @@ import 'package:restaurant_management/Sales/dailysales.dart';
 import 'package:restaurant_management/Sales/monthlysales.dart';
 import '../Expenses/daily.dart';
 import '../Expenses/monthly.dart';
+import '../Orders/admincancelled.dart';
+import '../Orders/usercancelled.dart';
 import '../Product & Admin/Menu/controller.dart';
 import '../Product & Admin/Staff/staf.dart';
 import '../Product & Admin/category.dart';
@@ -17,6 +19,7 @@ import '../Product & Admin/governing.dart';
 import '../Product & Admin/offer.dart';
 import '../Product & Admin/products.dart';
 import '../controller/menucontroller.dart';
+import '../over.dart';
 
 class SidebarMenu extends StatelessWidget {
   SidebarMenu({super.key});
@@ -24,18 +27,13 @@ class SidebarMenu extends StatelessWidget {
   final Controller menuController = Get.put(Controller());
   final controller = Get.put(MenuGetxCtrl());
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 250.w,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFF0A1F44),
-            Color(0xFF0C2E69),
-            Color(0xFF0F3D85),
-          ],
+          colors: [Color(0xFF0A1F44), Color(0xFF0C2E69), Color(0xFF0F3D85)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -67,32 +65,49 @@ class SidebarMenu extends StatelessWidget {
           SizedBox(height: 25.h),
 
           /// ===== MENU ITEMS =====
-
           _menuTile(
             icon: FontAwesomeIcons.houseChimney,
             title: "Home",
-            page: Center(child: Text("Homepage", style: TextStyle(color: Colors.white))),
+            page: TodayOverviewPage()
           ),
 
           _expansionGroup(
             title: "Orders",
             icon: FontAwesomeIcons.clipboardList,
             children: [
-              _menuTile(icon: FontAwesomeIcons.satelliteDish, title: "Live Orders", page: LiveOrdersPage()),
-              _menuTile(icon: FontAwesomeIcons.check, title: "Delivered Orders", page: Deliverdorder()),
+              _menuTile(
+                icon: FontAwesomeIcons.satelliteDish,
+                title: "Live Orders",
+                page: LiveOrdersPage(),
+              ),
+              _menuTile(
+                icon: FontAwesomeIcons.check,
+                title: "Delivered Orders",
+                page: DeliveredOrdersPage(),
+              ),
+              _menuTile(
+                icon: FontAwesomeIcons.cancel,
+                title: "Customers Cancelled Orders",
+                page: UserCancelledOrdersPage(),
+              ),
+              _menuTile(
+                icon: FontAwesomeIcons.cancel,
+                title: "Admin Cancelled Orders",
+                page: AdminCancelledOrdersPage(),
+              ),
             ],
           ),
 
           _menuTile(
             icon: FontAwesomeIcons.chartLine,
             title: "Daily Sales",
-            page: const Dailysales(),
+            page:  DailySalesPage(),
           ),
 
           _menuTile(
             icon: FontAwesomeIcons.chartSimple,
             title: "Monthly Sales",
-            page: const Monthlysales(),
+            page:  MonthlySalesPage(),
           ),
 
           _menuTile(
@@ -111,8 +126,16 @@ class SidebarMenu extends StatelessWidget {
             title: "Expenses",
             icon: FontAwesomeIcons.moneyBillTransfer,
             children: [
-              _menuTile(icon: FontAwesomeIcons.calendarDay, title: "Daily Expenses", page: DailyExpensesPage()),
-              _menuTile(icon: FontAwesomeIcons.calendarWeek, title: "Monthly Expenses", page: MonthlyExpensesPage()),
+              _menuTile(
+                icon: FontAwesomeIcons.calendarDay,
+                title: "Daily Expenses",
+                page: DailyExpensesPage(),
+              ),
+              _menuTile(
+                icon: FontAwesomeIcons.calendarWeek,
+                title: "Monthly Expenses",
+                page: MonthlyExpensesPage(),
+              ),
             ],
           ),
 
@@ -131,8 +154,7 @@ class SidebarMenu extends StatelessWidget {
           _menuTile(
             icon: FontAwesomeIcons.productHunt,
             title: "Category",
-            page: CategoryPage(controller)
-
+            page: CategoryPage(controller),
           ),
         ],
       ),
@@ -169,9 +191,7 @@ class SidebarMenu extends StatelessWidget {
     required List<Widget> children,
   }) {
     return Theme(
-      data: Theme.of(Get.context!).copyWith(
-        dividerColor: Colors.transparent,
-      ),
+      data: Theme.of(Get.context!).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         initiallyExpanded: false,
         iconColor: Colors.cyanAccent,

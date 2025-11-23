@@ -23,13 +23,8 @@ class _CategoryPageState extends State<CategoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(FontAwesomeIcons.tags, color: Colors.white, size: 20.sp),
-            SizedBox(width: 10.w),
-            const Text("Manage Categories"),
-          ],
-        ),
+        centerTitle: true,
+        title: const Text("Manage Categories", style: TextStyle(color: Colors.white),),
         backgroundColor: const Color.fromARGB(255, 2, 41, 87),
       ),
       body: Obx(

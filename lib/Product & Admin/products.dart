@@ -26,8 +26,14 @@ class ProductsPage extends StatelessWidget {
         child:  Icon(Icons.add, color: Colors.white),
       ),
 
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text("Our Menu", style: TextStyle(color: Colors.white),),
+        backgroundColor: const Color.fromARGB(255, 2, 41, 87),
+      ),
+
       body: Column(
-        children: [
+        children: [ 
           SizedBox(height: 25.h),
 
           SizedBox(
