@@ -11,7 +11,7 @@ import 'Daily/controller.dart';
 class DailyExpensesPage extends StatelessWidget {
   DailyExpensesPage({super.key});
 
-  final ExpensesController controller = Get.put(ExpensesController());
+  final DailyExpensesController controller = Get.put(DailyExpensesController());
 
   final TextEditingController nameCtrl = TextEditingController();
   final TextEditingController amountCtrl = TextEditingController();
@@ -65,12 +65,40 @@ class DailyExpensesPage extends StatelessWidget {
         children: [
           SizedBox(height: 15.h),
 
+          // Date picker
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            child: Obx(
+              () => ElevatedButton.icon(
+                icon: const FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
+                label: Text(
+                  "Date: ${DateFormat('dd MMM yyyy').format(controller.selectedDate.value)}",
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onPressed: () async {
+                  DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: controller.selectedDate.value,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) controller.changeDate(picked);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F3D85),
+                ),
+              ),
+            ),
+          ),
+
+          SizedBox(height: 15.h),
+
           // Total Display
           Obx(
             () => Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.w),
               child: Container(
-                width: 400.w,
+                width: double.infinity,
                 padding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 16.w),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -115,7 +143,7 @@ class DailyExpensesPage extends StatelessWidget {
               if (controller.dailyList.isEmpty) {
                 return Center(
                   child: Text(
-                    "No expenses added today.",
+                    "No expenses added for this day.",
                     style: TextStyle(fontSize: 16.sp, color: Colors.black54),
                   ),
                 );
@@ -126,13 +154,12 @@ class DailyExpensesPage extends StatelessWidget {
                 itemCount: controller.dailyList.length,
                 itemBuilder: (context, index) {
                   final item = controller.dailyList[index];
-                  final date = item["date"] != null
-                      ? DateFormat("dd MMM yyyy")
-                          .format(item["date"].toDate())
+                  final date = item["time"] != null
+                      ? DateFormat("dd MMM yyyy").format(item["time"])
                       : "";
 
                   return Container(
-                    margin: EdgeInsets.symmetric(vertical: 6.h, horizontal: 150.w),
+                    margin: EdgeInsets.symmetric(vertical: 6.h),
                     padding: EdgeInsets.all(12.w),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -204,8 +231,7 @@ class DailyExpensesPage extends StatelessWidget {
     nameCtrl.clear();
     amountCtrl.clear();
     noteCtrl.clear();
-
-    final selectedDate = Rx<DateTime?>(null);
+    final Rx<DateTime?> selectedDateForAdd = Rx<DateTime?>(controller.selectedDate.value);
 
     Get.defaultDialog(
       title: "Add Expense",
@@ -218,18 +244,12 @@ class DailyExpensesPage extends StatelessWidget {
             decoration: InputDecoration(
               labelText: "Expense Name",
               prefixIcon: Padding(
-                padding: EdgeInsets.only(left: 10.w, right: 10.w),
-                child: FaIcon(
-                  FontAwesomeIcons.pen,
-                  size: 18.sp,
-                  color: Colors.grey[700],
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 10.w),
+                child: const FaIcon(FontAwesomeIcons.pen, size: 18),
               ),
-              prefixIconConstraints:
-                  BoxConstraints(minWidth: 40.w, minHeight: 40.h),
+              prefixIconConstraints: BoxConstraints(minWidth: 40.w, minHeight: 40.h),
             ),
           ),
-
           SizedBox(height: 8.h),
 
           // Amount
@@ -239,18 +259,12 @@ class DailyExpensesPage extends StatelessWidget {
             decoration: InputDecoration(
               labelText: "Amount",
               prefixIcon: Padding(
-                padding: EdgeInsets.only(left: 10.w, right: 10.w),
-                child: FaIcon(
-                  FontAwesomeIcons.coins,
-                  size: 18.sp,
-                  color: Colors.grey[700],
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 10.w),
+                child: const FaIcon(FontAwesomeIcons.coins, size: 18),
               ),
-              prefixIconConstraints:
-                  BoxConstraints(minWidth: 40.w, minHeight: 40.h),
+              prefixIconConstraints: BoxConstraints(minWidth: 40.w, minHeight: 40.h),
             ),
           ),
-
           SizedBox(height: 8.h),
 
           // Note
@@ -259,18 +273,12 @@ class DailyExpensesPage extends StatelessWidget {
             decoration: InputDecoration(
               labelText: "Note",
               prefixIcon: Padding(
-                padding: EdgeInsets.only(left: 10.w, right: 10.w),
-                child: FaIcon(
-                  FontAwesomeIcons.noteSticky,
-                  size: 18.sp,
-                  color: Colors.grey[700],
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 10.w),
+                child: const FaIcon(FontAwesomeIcons.noteSticky, size: 18),
               ),
-              prefixIconConstraints:
-                  BoxConstraints(minWidth: 40.w, minHeight: 40.h),
+              prefixIconConstraints: BoxConstraints(minWidth: 40.w, minHeight: 40.h),
             ),
           ),
-
           SizedBox(height: 12.h),
 
           // Date picker
@@ -278,19 +286,19 @@ class DailyExpensesPage extends StatelessWidget {
             () => ElevatedButton.icon(
               icon: const FaIcon(FontAwesomeIcons.calendar, color: Colors.white),
               label: Text(
-                selectedDate.value == null
+                selectedDateForAdd.value == null
                     ? "Pick Date"
-                    : DateFormat("dd MMM yyyy").format(selectedDate.value!),
+                    : DateFormat("dd MMM yyyy").format(selectedDateForAdd.value!),
                 style: const TextStyle(color: Colors.white),
               ),
               onPressed: () async {
                 DateTime? picked = await showDatePicker(
                   context: context,
-                  initialDate: DateTime.now(),
+                  initialDate: selectedDateForAdd.value ?? DateTime.now(),
                   firstDate: DateTime(2000),
                   lastDate: DateTime(2100),
                 );
-                if (picked != null) selectedDate.value = picked;
+                if (picked != null) selectedDateForAdd.value = picked;
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F3D85),
@@ -307,7 +315,7 @@ class DailyExpensesPage extends StatelessWidget {
           nameCtrl.text,
           int.parse(amountCtrl.text),
           note: noteCtrl.text,
-          date: selectedDate.value ?? DateTime.now(),
+          date: selectedDateForAdd.value ?? DateTime.now(),
         );
 
         Get.back();

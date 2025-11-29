@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import '../../Expenses/Daily/controller.dart';
 import 'controller.dart';
 
-final ExpensesController expensesController = Get.put(ExpensesController());
+final DailyExpensesController expensesController = Get.put(DailyExpensesController());
 
 void addSalaryDialog(
   StaffController controller,

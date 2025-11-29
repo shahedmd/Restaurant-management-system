@@ -1,7 +1,6 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -15,8 +14,7 @@ class Controller extends GetxController {
 
   final PrintingController printingController = Get.put(PrintingController());
 
-  /// Show invoice dialog with points usage feature
- Future<bool> showInvoiceDialog(
+  Future<bool> showInvoiceDialog(
     BuildContext context,
     Map<String, dynamic> order,
     String docId,
@@ -31,20 +29,16 @@ class Controller extends GetxController {
     final TextEditingController pointsToUseController = TextEditingController();
 
     final RxString customerName = ''.obs;
-    final RxInt customerPoints = 0.obs; // fetched from firestore
-    final RxBool isLoading = false.obs;
-    final RxBool pointsAllowed =
-        false.obs; // whether user can use points (>100)
-    final RxDouble computedTotal = RxDouble(
-      ((order['total'] ?? 0) as num).toDouble(),
-    );
-
+    final RxInt customerPoints = 0.obs;
+    final RxBool pointsAllowed = false.obs;
+    final RxDouble computedTotal = RxDouble((order['total'] ?? 0));
     final double originalTotal = ((order['total'] ?? 0) as num).toDouble();
-    // For displaying friendly dates if needed inside PDF
-    final completer = Completer<bool>();
+    final RxBool isLoading = false.obs;
+    final Completer<bool> completer = Completer<bool>();
 
+    Timer? debounce;
 
-    // Helper: fetch customer by mobile (if exists) and set points
+    // Fetch customer by mobile
     Future<void> fetchCustomerByMobile(String mobile) async {
       if (mobile.isEmpty) {
         customerName.value = '';
@@ -52,7 +46,6 @@ class Controller extends GetxController {
         pointsAllowed.value = false;
         return;
       }
-
       try {
         final q =
             await FirebaseFirestore.instance
@@ -66,12 +59,10 @@ class Controller extends GetxController {
           customerName.value = (data['name'] ?? '') as String;
           customerPoints.value = ((data['points'] ?? 0) as num).toInt();
           pointsAllowed.value = customerPoints.value > 100;
-          nameController.text =
-              customerName.value.isNotEmpty
-                  ? customerName.value
-                  : nameController.text;
+          if (customerName.value.isNotEmpty) {
+            nameController.text = customerName.value;
+          }
         } else {
-          // no customer found
           customerName.value = '';
           customerPoints.value = 0;
           pointsAllowed.value = false;
@@ -84,11 +75,9 @@ class Controller extends GetxController {
       }
     }
 
-    // Initialize by trying to fetch existing customer from order phone (if provided)
+    // Initialize on open
     final initialMobile = mobileController.text.trim();
-    if (initialMobile.isNotEmpty) {
-      fetchCustomerByMobile(initialMobile);
-    }
+    if (initialMobile.isNotEmpty) fetchCustomerByMobile(initialMobile);
 
     Get.dialog(
       Obx(
@@ -104,7 +93,7 @@ class Controller extends GetxController {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Mobile
+                        // Mobile input
                         TextField(
                           controller: mobileController,
                           keyboardType: TextInputType.phone,
@@ -116,29 +105,24 @@ class Controller extends GetxController {
                                 FontAwesomeIcons.search,
                                 size: 16.sp,
                               ),
-                              onPressed: () {
-                                fetchCustomerByMobile(
-                                  mobileController.text.trim(),
-                                );
-                              },
+                              onPressed:
+                                  () => fetchCustomerByMobile(
+                                    mobileController.text.trim(),
+                                  ),
                             ),
                           ),
                           onChanged: (val) {
-                            // debounce-like behavior: call fetch only for non-empty values
-                            final mobile = val.trim();
-                            if (mobile.isEmpty) {
-                              customerName.value = '';
-                              customerPoints.value = 0;
-                              pointsAllowed.value = false;
-                            } else {
-                              // fetch customer details
-                              fetchCustomerByMobile(mobile);
-                            }
+                            debounce?.cancel();
+                            debounce = Timer(
+                              const Duration(milliseconds: 500),
+                              () {
+                                fetchCustomerByMobile(val.trim());
+                              },
+                            );
                           },
                         ),
                         SizedBox(height: 10.h),
-
-                        // Name
+                        // Name input
                         TextField(
                           controller: nameController,
                           decoration: InputDecoration(
@@ -151,123 +135,133 @@ class Controller extends GetxController {
                           ),
                         ),
                         SizedBox(height: 10.h),
-
-                        // Show fetched points (read-only)
-                        TextField(
-                          controller: TextEditingController(
-                            text: customerPoints.value.toString(),
-                          ),
-                          readOnly: true,
-                          decoration: InputDecoration(
-                            labelText: "Customer Points (available)",
-                            border: const OutlineInputBorder(),
-                            helperText:
-                                pointsAllowed.value
-                                    ? 'Points can be used as discount (1 point = 1 BDT). Minimum to use: >100.'
-                                    : 'Customer needs >100 points to be eligible to use points.',
+                        // Points info (read-only)
+                        Obx(
+                          () => TextField(
+                            controller: TextEditingController(
+                              text: customerPoints.value.toString(),
+                            ),
+                            readOnly: true,
+                            decoration: InputDecoration(
+                              labelText: "Customer Points (available)",
+                              border: const OutlineInputBorder(),
+                              helperText:
+                                  pointsAllowed.value
+                                      ? 'Points can be used (>100)'
+                                      : 'Customer needs >100 points',
+                            ),
                           ),
                         ),
                         SizedBox(height: 10.h),
-
-                        // Points to use input (only enabled if eligible)
-                        TextField(
-                          controller: pointsToUseController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Points to Use (BDT)",
-                            border: const OutlineInputBorder(),
-                            helperText:
-                                pointsAllowed.value
-                                    ? 'Max ${customerPoints.value}'
-                                    : 'Not eligible to use points',
+                        // Points to use input
+                        Obx(
+                          () => TextField(
+                            controller: pointsToUseController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: "Points to Use (BDT)",
+                              border: const OutlineInputBorder(),
+                              helperText:
+                                  pointsAllowed.value
+                                      ? 'Max ${customerPoints.value}'
+                                      : 'Not eligible',
+                            ),
+                            enabled: pointsAllowed.value,
+                            onChanged: (val) {
+                              final parsed = int.tryParse(val) ?? 0;
+                              if (parsed > customerPoints.value) {
+                                pointsToUseController.text =
+                                    customerPoints.value.toString();
+                                pointsToUseController
+                                    .selection = TextSelection.fromPosition(
+                                  TextPosition(
+                                    offset: pointsToUseController.text.length,
+                                  ),
+                                );
+                              }
+                            },
                           ),
-                          enabled: pointsAllowed.value,
-                          onChanged: (val) {
-                            // sanitize input and ensure not exceeding available points
-                            final parsed = int.tryParse(val) ?? 0;
-                            if (parsed > customerPoints.value) {
-                              pointsToUseController.text =
-                                  customerPoints.value.toString();
-                              pointsToUseController
-                                  .selection = TextSelection.fromPosition(
-                                TextPosition(
-                                  offset: pointsToUseController.text.length,
-                                ),
-                              );
-                            }
-                          },
                         ),
                         SizedBox(height: 10.h),
-
-                        // Manual Discount (admin)
+                        // Manual discount
                         TextField(
                           controller: discountController,
-                          keyboardType: TextInputType.numberWithOptions(
+                          keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
                           decoration: const InputDecoration(
                             labelText: "Manual Discount (BDT)",
                             border: OutlineInputBorder(),
-                            helperText:
-                                'Optional extra discount (applied before points).',
                           ),
                         ),
-
                         SizedBox(height: 12.h),
-
-                        // Show calculation summary preview (reactive-ish)
-                        Builder(
-                          builder: (_) {
+                        // Calculation summary
+                        // Calculation summary container
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: discountController,
+                          builder: (context, discountValue, _) {
                             final manualDiscount =
-                                double.tryParse(discountController.text) ?? 0.0;
-                            final pointsUsed =
-                                int.tryParse(pointsToUseController.text) ?? 0;
-                            final totalDiscount = (manualDiscount + pointsUsed)
-                                .clamp(0.0, originalTotal);
-                            final finalTotal = (originalTotal - totalDiscount)
-                                .clamp(0.0, double.infinity);
-                            // update computedTotal for dialog usage
-                            computedTotal.value = finalTotal;
+                                double.tryParse(discountValue.text) ?? 0.0;
 
-                            return Container(
-                              width: double.infinity,
-                              padding: EdgeInsets.all(12.h),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Original Total: BDT ${originalTotal.toStringAsFixed(2)}",
-                                    style: TextStyle(
-                                      fontSize: 13.sp,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            return ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: pointsToUseController,
+                              builder: (context, pointsValue, _) {
+                                final pointsUsed =
+                                    int.tryParse(pointsValue.text) ?? 0;
+
+                                // Calculate totals
+                                final totalDiscount = (manualDiscount +
+                                        pointsUsed)
+                                    .clamp(0.0, originalTotal);
+                                final finalTotal = (originalTotal -
+                                        totalDiscount)
+                                    .clamp(0.0, double.infinity);
+
+                                // Update reactive variable if needed
+                                computedTotal.value = finalTotal;
+
+                                return Container(
+                                  width: double.infinity,
+                                  padding: EdgeInsets.all(12.h),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(8.r),
                                   ),
-                                  SizedBox(height: 6.h),
-                                  Text(
-                                    "Manual Discount: BDT ${manualDiscount.toStringAsFixed(2)}",
-                                    style: TextStyle(fontSize: 12.sp),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Original Total: BDT ${originalTotal.toStringAsFixed(2)}",
+                                        style: TextStyle(
+                                          fontSize: 13.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 6.h),
+                                      Text(
+                                        "Manual Discount: BDT ${manualDiscount.toStringAsFixed(2)}",
+                                        style: TextStyle(fontSize: 12.sp),
+                                      ),
+                                      SizedBox(height: 6.h),
+                                      Text(
+                                        "Points Used: BDT $pointsUsed",
+                                        style: TextStyle(fontSize: 12.sp),
+                                      ),
+                                      SizedBox(height: 8.h),
+                                      Divider(),
+                                      SizedBox(height: 6.h),
+                                      Text(
+                                        "Final Total: BDT ${finalTotal.toStringAsFixed(2)}",
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  SizedBox(height: 6.h),
-                                  Text(
-                                    "Points Used as Discount: BDT ${pointsUsed.toString()}",
-                                    style: TextStyle(fontSize: 12.sp),
-                                  ),
-                                  SizedBox(height: 8.h),
-                                  Divider(),
-                                  SizedBox(height: 6.h),
-                                  Text(
-                                    "Final Total: BDT ${finalTotal.toStringAsFixed(2)}",
-                                    style: TextStyle(
-                                      fontSize: 14.sp,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                );
+                              },
                             );
                           },
                         ),
@@ -299,11 +293,9 @@ class Controller extends GetxController {
                           return;
                         }
 
-                        // Begin processing
                         isLoading.value = true;
 
                         try {
-                          // Fetch or create customer doc
                           final customerRef = FirebaseFirestore.instance
                               .collection('customers');
                           final query =
@@ -313,9 +305,13 @@ class Controller extends GetxController {
                                   .get();
 
                           DocumentReference custDocRef;
+                          int freshPoints = 0;
 
                           if (query.docs.isNotEmpty) {
                             custDocRef = query.docs.first.reference;
+                            final data = query.docs.first.data();
+                            freshPoints =
+                                ((data['points'] ?? 0) as num).toInt();
                           } else {
                             custDocRef = await customerRef.add({
                               'mobile': mobile,
@@ -324,24 +320,13 @@ class Controller extends GetxController {
                             });
                           }
 
-                          // Re-read fresh points to avoid race conditions
-                          final freshSnapshot = await custDocRef.get();
-                          final freshData =
-                              freshSnapshot.data() as Map<String, dynamic>?;
-
-                          final int freshPoints =
-                              ((freshData?['points'] ?? 0) as num).toInt();
-
-                          // Compute usage
                           final int pointsToUse =
                               (int.tryParse(pointsToUseController.text) ?? 0)
                                   .clamp(0, freshPoints);
-                          // enforce eligibility rule: points usable only if freshPoints > 100
                           if (pointsToUse > 0 && freshPoints <= 100) {
-                            // Block usage if not eligible
                             Get.snackbar(
                               "Points not usable",
-                              "Customer must have more than 100 points to use points as discount.",
+                              "Customer must have more than 100 points",
                               backgroundColor: Colors.orange.shade300,
                               colorText: Colors.white,
                             );
@@ -358,60 +343,60 @@ class Controller extends GetxController {
                                   totalDiscount)
                               .clamp(0.0, double.infinity);
 
-                          // Earn points rule: +1 if final total >= 200 (you can tweak as needed)
                           final int earnedPoints =
-                              discountedTotal >= 200.0 ? 1 : 0;
-
+                              discountedTotal >= 200 ? 1 : 0;
                           final int newPoints =
                               freshPoints - pointsToUse + earnedPoints;
 
-                          // Prepare pointsInfo to pass to PDF generator
-                          final Map<String, dynamic> pointsInfo = {
-                            'originalPoints': freshPoints,
-                            'pointsUsed': pointsToUse,
-                            'pointsEarned': earnedPoints,
-                            'pointsRemaining': newPoints,
-                          };
-
-                          // Generate PDF (ensure your generateInvoicePDF signature accepts pointsInfo)
-                          await printingController.generateInvoicePDF(
-                            order,
-                            discountedTotal,
-                            totalDiscount,
-                            {'name': name, 'mobile': mobile},
-                            pointsInfo, // new param: points details for PDF
-                          );
-
-                          // Update customer points and name (if changed)
-                          await custDocRef.update({
+                          // Batch update
+                          final batch = FirebaseFirestore.instance.batch();
+                          batch.update(custDocRef, {
                             'points': newPoints,
                             'name': name,
                           });
-
-                          // Update order document with final status + meta
-                          await FirebaseFirestore.instance
-                              .collection('orders')
-                              .doc(docId)
-                              .update({
-                                'status': 'delivered',
-                                'name': name,
-                                'phone': mobile,
-                                'manualDiscount': manualDiscount,
-                                'previousPoint': freshPoints,
+                          batch.update(
+                            FirebaseFirestore.instance
+                                .collection('orders')
+                                .doc(docId),
+                            {
+                              'status': 'delivered',
+                              'name': name,
+                              'phone': mobile,
+                              'manualDiscount': manualDiscount,
+                              'previousPoint': freshPoints,
+                              'pointsUsed': pointsToUse,
+                              'pointsRemaining': newPoints,
+                              'pointsEarned': earnedPoints,
+                            },
+                          );
+                          // PDF generation asynchronously
+                          Future.microtask(
+                            () => printingController.generateInvoicePDF(
+                              order,
+                              discountedTotal,
+                              totalDiscount,
+                              {'name': name, 'mobile': mobile},
+                              {
+                                'originalPoints': freshPoints,
                                 'pointsUsed': pointsToUse,
-                                'pointsRemaining': newPoints,
                                 'pointsEarned': earnedPoints,
-                              });
+                                'pointsRemaining': newPoints,
+                              },
+                            ),
+                          );
 
+                          await batch.commit();
                           Get.back();
-                          
-completer.complete(true); // close dialog
+                          completer.complete(true);
+
                           Get.snackbar(
                             "Invoice Generated",
-                            "Customer: $name\nTotal: BDT ${discountedTotal.toStringAsFixed(2)}\nPoints used: $pointsToUse\nPoints remaining: $newPoints",
+                            "Customer: $name\nTotal: BDT ${discountedTotal.toStringAsFixed(2)}\nPoints remaining: $newPoints",
                             backgroundColor: Colors.green.shade400,
                             colorText: Colors.white,
-                            duration: const Duration(seconds: 4),
+                            duration: const Duration(
+                              days: 1,
+                            ), // persistent until manually closed
                           );
                         } catch (e, st) {
                           debugPrint('Invoice generation failed: $e\n$st');
@@ -430,6 +415,7 @@ completer.complete(true); // close dialog
         ),
       ),
     );
+
     return completer.future;
   }
 }

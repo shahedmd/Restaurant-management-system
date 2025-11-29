@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, avoid_types_as_parameter_names
+// ignore_for_file: deprecated_member_use
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -6,185 +6,159 @@ import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../Monthly/controller.dart'; // Import your monthly controller
 
-class ExpensesController extends GetxController {
+class DailyExpensesController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  var dailyList = <Map<String, dynamic>>[].obs;
-  var dailyTotal = 0.obs;
-  var isLoading = false.obs; // Loading indicator
+  final RxList<Map<String, dynamic>> dailyList = <Map<String, dynamic>>[].obs;
+  final RxInt dailyTotal = 0.obs;
+  final RxBool isLoading = false.obs;
+  final Rx<DateTime> selectedDate = DateTime.now().obs;
 
-  String get today => DateFormat('yyyy-MM-dd').format(DateTime.now());
+  String get selectedKey => DateFormat('yyyy-MM-dd').format(selectedDate.value);
+
+  // Monthly controller
+  late final MonthlyExpensesController monthlyController;
 
   @override
   void onInit() {
     super.onInit();
+    monthlyController = Get.find<MonthlyExpensesController>();
     _listenToDailyExpenses();
   }
 
+  // Listen for daily expenses of selected date
   void _listenToDailyExpenses() {
     _db
         .collection('daily_expenses')
-        .doc(today)
+        .doc(selectedKey)
         .collection('items')
         .orderBy('time', descending: true)
         .snapshots()
         .listen((snapshot) {
       final items = snapshot.docs.map((doc) {
+        final data = doc.data();
         return {
           'id': doc.id,
-          'name': doc['name'],
-          'amount': doc['amount'],
-          'note': doc['note'],
-          'time': doc['time'] is Timestamp ? (doc['time'] as Timestamp).toDate() : doc['time'],
+          'name': data['name'] ?? '',
+          'amount': (data['amount'] as num?)?.toInt() ?? 0,
+          'note': data['note'] ?? '',
+          'time': data['time'] is Timestamp
+              ? (data['time'] as Timestamp).toDate()
+              : DateTime.now(),
         };
       }).toList();
 
-      dailyList.value = items;
-      dailyTotal.value = items.fold<int>(
-          0, (sum, e) => sum + (e['amount'] as num).toInt());
+      dailyList.assignAll(items);
+      dailyTotal.value = items.fold(0, (sum, e) => sum + (e['amount'] as int));
     });
   }
 
-Future<void> addDailyExpense(
-  String name,
-  int amount, {
-  String note = '',
-  DateTime? date,
-}) async {
-  isLoading.value = true;
-
-  final expenseDate = date ?? DateTime.now();
-  final todayKey = DateFormat('yyyy-MM-dd').format(expenseDate);
-  final parentDoc = _db.collection('daily_expenses').doc(todayKey);
-
-  // Ensure daily doc exists
-  final snapshot = await parentDoc.get();
-  if (!snapshot.exists) {
-    await parentDoc.set({'createdAt': Timestamp.now()});
+  // Change date and refresh
+  void changeDate(DateTime date) {
+    selectedDate.value = date;
+    _listenToDailyExpenses();
   }
 
-  // Add to Firestore daily collection
-  await parentDoc.collection('items').add({
-    'name': name,
-    'amount': amount,
-    'note': note,
-    'time': Timestamp.fromDate(expenseDate),
-  });
+  // Add daily expense & update monthly
+  Future<void> addDailyExpense(
+    String name,
+    int amount, {
+    String note = '',
+    DateTime? date,
+  }) async {
+    try {
+      isLoading.value = true;
+      final expenseDate = date ?? DateTime.now();
+      final docKey = DateFormat('yyyy-MM-dd').format(expenseDate);
+      final parentDoc = _db.collection('daily_expenses').doc(docKey);
 
-  // Auto-save to monthly
-  final monthKey = DateFormat('MMM-yyyy').format(expenseDate);
-  final monthDocRef = _db.collection('monthly_expenses').doc(monthKey);
-  final monthSnapshot = await monthDocRef.get();
+      // Ensure the daily doc exists
+      final snapshot = await parentDoc.get();
+      if (!snapshot.exists) await parentDoc.set({'createdAt': Timestamp.now()});
 
-  if (!monthSnapshot.exists) {
-    await monthDocRef.set({
-      'total': amount,
-      'items': [
-        {'date': todayKey, 'total': amount}
-      ],
-      'createdAt': Timestamp.now(),
-    });
-  } else {
-    final data = monthSnapshot.data()!;
-    int currentTotal = (data['total'] ?? 0) as int;
-    List items = List.from(data['items'] ?? []);
-    int index = items.indexWhere((e) => e['date'] == todayKey);
-
-    if (index >= 0) {
-      items[index]['total'] += amount;
-    } else {
-      items.add({'date': todayKey, 'total': amount});
-    }
-
-    await monthDocRef.update({
-      'total': currentTotal + amount,
-      'items': items,
-    });
-  }
-
-isLoading.value = false;
-}
-
-
- Future<void> deleteDaily(String docId) async {
-  try {
-    isLoading.value = true;
-
-    final parentDoc = _db.collection('daily_expenses').doc(today);
-    final docRef = parentDoc.collection('items').doc(docId);
-
-    // Get the document to know the amount
-    final snapshot = await docRef.get();
-    if (!snapshot.exists) return;
-
-    final amount = (snapshot['amount'] as num).toInt();
-    final time = snapshot['time'] is Timestamp
-        ? (snapshot['time'] as Timestamp).toDate()
-        : snapshot['time'];
-
-    // Delete from daily
-    await docRef.delete();
-
-    // Update monthly expenses
-    final monthKey = DateFormat('MMM-yyyy').format(time);
-    final monthDocRef = _db.collection('monthly_expenses').doc(monthKey);
-    final monthSnapshot = await monthDocRef.get();
-
-    if (monthSnapshot.exists) {
-      final data = monthSnapshot.data()!;
-      int currentTotal = (data['total'] ?? 0) as int;
-      List items = List.from(data['items'] ?? []);
-
-      // Find the day entry
-      int index = items.indexWhere((e) => e['date'] == DateFormat('yyyy-MM-dd').format(time));
-      if (index >= 0) {
-        items[index]['total'] -= amount;
-
-        // Remove day if total becomes 0
-        if (items[index]['total'] <= 0) {
-          items.removeAt(index);
-        }
-      }
-
-      // Update monthly total
-      await monthDocRef.update({
-        'total': currentTotal - amount,
-        'items': items,
+      // Add daily expense
+      await parentDoc.collection('items').add({
+        'name': name,
+        'amount': amount,
+        'note': note,
+        'time': Timestamp.fromDate(expenseDate),
       });
+
+      // Refresh current day's list if needed
+      if (selectedKey == docKey) _listenToDailyExpenses();
+
+      // Update monthly expenses automatically
+      await monthlyController.addToMonthly(amount: amount, date: expenseDate);
+    } finally {
+      isLoading.value = false;
     }
-  } finally {
-    isLoading.value = false;
   }
-}
 
+  // Delete daily expense & update monthly
+  Future<void> deleteDaily(String docId) async {
+    try {
+      isLoading.value = true;
+      final docRef =
+          _db.collection('daily_expenses').doc(selectedKey).collection('items').doc(docId);
 
+      final snapshot = await docRef.get();
+      if (!snapshot.exists) return;
 
+      final amount = (snapshot['amount'] as num?)?.toInt() ?? 0;
+      final time = snapshot['time'] is Timestamp
+          ? (snapshot['time'] as Timestamp).toDate()
+          : DateTime.now();
+
+      await docRef.delete();
+
+      // Monthly deduction
+      await monthlyController.removeFromMonthly(amount: amount, date: time);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Generate PDF for the selected day
   Future<void> generateDailyPDF() async {
     try {
       isLoading.value = true;
       final pdf = pw.Document();
-      final formattedDate = DateFormat('dd MMM yyyy').format(DateTime.now());
+      final formattedDate = DateFormat('dd MMM yyyy').format(selectedDate.value);
 
-      pdf.addPage(
-        pw.Page(
-          build: (pw.Context context) => pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('Daily Expenses - $formattedDate', style: pw.TextStyle(fontSize: 20)),
-              pw.SizedBox(height: 20),
-              pw.Table.fromTextArray(
-                headers: ['Name', 'Amount', 'Note'],
-                data: dailyList
-                    .map((e) => [e['name'], e['amount'].toString(), e['note'] ?? ''])
-                    .toList(),
-              ),
-              pw.SizedBox(height: 20),
-              pw.Text('Total: BDT ${dailyTotal.value}', style: pw.TextStyle(fontSize: 16)),
-            ],
+      if (dailyList.isEmpty) {
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Center(
+              child: pw.Text('No expenses for $formattedDate',
+                  style: pw.TextStyle(fontSize: 18)),
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('Daily Expenses - $formattedDate',
+                    style: pw.TextStyle(fontSize: 20)),
+                pw.SizedBox(height: 20),
+                pw.Table.fromTextArray(
+                  headers: ['Name', 'Amount', 'Note'],
+                  data: dailyList
+                      .map((e) => [e['name'], e['amount'].toString(), e['note']])
+                      .toList(),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text('Total: ৳ ${dailyTotal.value}',
+                    style: pw.TextStyle(fontSize: 16)),
+              ],
+            ),
+          ),
+        );
+      }
 
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } finally {

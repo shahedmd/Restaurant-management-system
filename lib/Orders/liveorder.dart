@@ -7,426 +7,442 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:restaurant_management/Sales/controller.dart';
 
+import 'package:restaurant_management/Sales/controller.dart';
 import 'package:restaurant_management/controller/menucontroller.dart';
+
 import '../controller/liverorderscontroller.dart';
 
 class LiveOrdersPage extends StatelessWidget {
   LiveOrdersPage({Key? key}) : super(key: key);
 
-  // Controllers (GetX)
   final LiveOrdersController controller = Get.put(
     LiveOrdersController(),
     permanent: true,
   );
-
-  // Menu controller (for invoice / printing etc)
   final Controller menucontroller = Get.put(Controller());
-
-  // Date formatter
-  final DateFormat _dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
-
   final SalesController salesController = Get.put(SalesController());
+
+  final DateFormat _dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
 
   @override
   Widget build(BuildContext context) {
-    // ScreenUtil should already be initialized in main.dart via ScreenUtilInit
     return Scaffold(
       appBar: AppBar(
-        centerTitle: true,
-        backgroundColor: Color.fromARGB(255, 2, 41, 87),
         title: Text(
           " Live Orders",
           style: TextStyle(
             fontSize: 18.sp,
-            color: Colors.white,
             fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
         ),
+        centerTitle: true,
+        backgroundColor: Color.fromARGB(255, 2, 41, 87),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream:
-            FirebaseFirestore.instance
-                .collection('orders')
-                .where('orderType', whereIn: ['Inhouse', 'Prebooking'])
-                .where('status', whereIn: ['pending', 'processing'])
-                .orderBy('timestamp', descending: true)
-                .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
-          }
+      body: Obx(() {
+        final orders = controller.orders;
 
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        if (orders.isEmpty) {
+          return Center(
+            child: Text(
+              "No live orders",
+              style: TextStyle(fontSize: 18.sp, color: Colors.grey[600]),
+            ),
+          );
+        }
 
-          final orders = snapshot.data!.docs;
+        return ListView.separated(
+          padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 8.w),
+          itemCount: orders.length,
+          separatorBuilder: (_, __) => SizedBox(height: 6.h),
+          itemBuilder: (context, index) {
+            final order = orders[index];
+            return _buildOrderCard(context, order);
+          },
+        );
+      }),
+    );
+  }
 
-          // If your LiveOrdersController has a checkForNewOrders method (used previously)
-          // call it sparingly to avoid extra overhead.
-          // Wrapping in microtask to avoid interfering with build.
+  Widget _buildOrderCard(BuildContext context, OrderModel order) {
+    final bool isSeen = order.isSeen;
+    final bg = isSeen ? Colors.white : Colors.brown.shade800;
+    final txtColor = isSeen ? Colors.black : Colors.white;
 
-          if (orders.isEmpty) {
-            return Center(
-              child: Text(
-                "No live orders",
-                style: TextStyle(fontSize: 18.sp, color: Colors.grey[600]),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: EdgeInsets.symmetric(vertical: 8.h),
-            itemCount: orders.length,
-            itemBuilder: (context, index) {
-              final doc = orders[index];
-              final docId = doc.id;
-              final order =
-                  (doc.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
-              final bool isSeen = order['isSeen'] as bool? ?? false;
-              final itemsList =
-                  (order['items'] as List<dynamic>?)
-                      ?.cast<Map<String, dynamic>>() ??
-                  <Map<String, dynamic>>[];
-              final Timestamp? ts = order['timestamp'] as Timestamp?;
-              final DateTime? orderTime = ts?.toDate();
-              final Timestamp? prebookTs = order['prebookSlot'] as Timestamp?;
-              final DateTime? prebookTime = prebookTs?.toDate();
-              final String status = order['status'] as String? ?? 'pending';
-              final String tableNo = order['tableNo']?.toString() ?? 'N/A';
-              final num total = order['total'] as num? ?? 0;
-              final String orderType =
-                  order['orderType'] as String? ?? 'Inhouse';
-              final String adminFeedback =
-                  order['adminFeedback'] as String? ?? '';
-
-              return Padding(
-                padding: EdgeInsets.symmetric(vertical: 6.h, horizontal: 10.w),
-                child: Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+      color: bg,
+      child: ExpansionTile(
+        key: ValueKey(order.id),
+        tilePadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        backgroundColor: bg,
+        collapsedBackgroundColor: bg,
+        childrenPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        title: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Table: ${order.tableNo}",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16.sp,
+                      color: txtColor,
+                    ),
                   ),
-                  color: isSeen ? Colors.white : Colors.brown.shade800,
-                  child: ExpansionTile(
-                    key: ValueKey(docId),
-                    tilePadding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 8.h,
+                  SizedBox(height: 4.h),
+                  Text(
+                    "${order.orderType}  •  ${_shortStatusLabel(order.status)}",
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: isSeen ? Colors.grey[700] : Colors.white70,
                     ),
-                    childrenPadding: EdgeInsets.symmetric(
-                      horizontal: 12.w,
-                      vertical: 8.h,
-                    ),
-                    backgroundColor:
-                        isSeen ? Colors.white : Colors.brown.shade800,
-                    collapsedBackgroundColor:
-                        isSeen ? Colors.white : Colors.brown.shade800,
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Table: $tableNo",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16.sp,
-                                  color: isSeen ? Colors.black : Colors.white,
-                                ),
-                              ),
-                              SizedBox(height: 4.h),
-                              Text(
-                                "$orderType  •  ${_shortStatusLabel(status)}",
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color:
-                                      isSeen
-                                          ? Colors.grey[700]
-                                          : Colors.white70,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              "৳${total.toString()}",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14.sp,
-                                color: isSeen ? Colors.black : Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 6.h),
-                            _statusChip(status),
-                          ],
-                        ),
-                      ],
-                    ),
-                    trailing: Wrap(
-                      spacing: 6.w,
-                      children: [
-                        _iconButton(
-                          onTap: () => _showEditDialog(context, docId, order),
-                          icon: FontAwesomeIcons.edit,
-                          tooltip: 'Edit',
-                        ),
-
-                        _iconButton(
-                          onTap: () async {
-                            // 1️⃣ Print invoice & update order
-                            final success = await menucontroller
-                                .showInvoiceDialog(context, order, docId);
-
-                            if (!success) {
-                              Get.snackbar(
-                                "Error",
-                                "Invoice failed",
-                                backgroundColor: Colors.red,
-                              );
-                              return;
-                            }
-
-                            // 2️⃣ Fetch fresh data AFTER invoice has updated the order
-                            final snap =
-                                await FirebaseFirestore.instance
-                                    .collection('orders')
-                                    .doc(docId)
-                                    .get();
-
-                            if (!snap.exists) {
-                              Get.snackbar(
-                                "Error",
-                                "Order not found",
-                                backgroundColor: Colors.red,
-                              );
-                              return;
-                            }
-
-                            final updatedOrder = snap.data()!;
-
-                            // 3️⃣ Now add sale using the fresh correct data
-                            await salesController.addSale(
-                              updatedOrder,
-                              docId,
-                              updatedOrder['name'],
-                              updatedOrder['phone'],
-                            );
-                          },
-                          icon: FontAwesomeIcons.print,
-                          tooltip: 'Print',
-                        ),
-
-                        _iconButton(
-                          onTap: () async {
-                            final confirm = await _confirmDelete(context);
-                            if (confirm == true) {
-                              await FirebaseFirestore.instance
-                                  .collection('orders')
-                                  .doc(docId)
-                                  .delete();
-                              Get.snackbar(
-                                'Deleted',
-                                'Order removed successfully',
-                                backgroundColor: Colors.red.shade300,
-                                colorText: Colors.white,
-                              );
-                            }
-                          },
-                          icon: FontAwesomeIcons.trash,
-                          tooltip: 'Delete',
-                          danger: true,
-                        ),
-                      ],
-                    ),
-                    onExpansionChanged: (expanded) async {
-                      if (expanded && !isSeen) {
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('orders')
-                              .doc(docId)
-                              .update({'isSeen': true});
-                        } catch (e) {
-                          Get.snackbar(
-                            'Error',
-                            'Could not mark order seen: $e',
-                            backgroundColor: Colors.red.shade300,
-                            colorText: Colors.white,
-                          );
-                        }
-                      }
-                    },
-                    children: [
-                      // Items list
-                      ...itemsList.map((item) {
-                        final String itemName = item['name']?.toString() ?? '';
-                        final String? imgUrl = item['imgUrl']?.toString();
-                        final String category =
-                            item['category']?.toString() ?? '';
-                        final int qty =
-                            (item['quantity'] as num?)?.toInt() ?? 0;
-
-                        // Price resolution: selectedVariant.price -> item['price'] -> 0
-                        num itemPrice = 0;
-                        final selVariant = item['selectedVariant'];
-                        if (selVariant is Map<String, dynamic>) {
-                          itemPrice = selVariant['price'] as num? ?? 0;
-                        } else {
-                          itemPrice = item['price'] as num? ?? 0;
-                        }
-
-                        final String variantLabel =
-                            (selVariant is Map<String, dynamic>)
-                                ? (selVariant['size']?.toString() ?? '')
-                                : '';
-
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: _buildItemImage(imgUrl),
-                          title: Text(
-                            "$itemName ${variantLabel.isNotEmpty ? '• $variantLabel' : ''}",
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: isSeen ? Colors.black : Colors.white,
-                            ),
-                          ),
-                          subtitle: Text(
-                            "$category  •  ৳${itemPrice.toString()}  •  x$qty",
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: isSeen ? Colors.grey[700] : Colors.white70,
-                            ),
-                          ),
-                          trailing: Text(
-                            "৳${(itemPrice * qty).toString()}",
-                            style: TextStyle(
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.bold,
-                              color: isSeen ? Colors.black : Colors.white,
-                            ),
-                          ),
-                        );
-                      }),
-
-                      Divider(height: 12.h),
-
-                      // Timestamps & Prebook slot if any
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6.w),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (orderTime != null)
-                              Text(
-                                "Order Time: ${_dateFormat.format(orderTime)}",
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color:
-                                      isSeen ? Colors.black54 : Colors.white70,
-                                ),
-                              ),
-                            if (prebookTime != null) SizedBox(height: 6.h),
-                            if (prebookTime != null)
-                              Text(
-                                "Prebooking Slot: ${_dateFormat.format(prebookTime)}",
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color:
-                                      isSeen ? Colors.black54 : Colors.white70,
-                                ),
-                              ),
-                            SizedBox(height: 8.h),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _gradientActionButton(
-                                    label: 'Change Status',
-                                    icon: FontAwesomeIcons.exchangeAlt,
-                                    onTap:
-                                        () => _showEditDialog(
-                                          context,
-                                          docId,
-                                          order,
-                                        ),
-                                  ),
-                                ),
-                                SizedBox(width: 8.w),
-                                Expanded(
-                                  child: _gradientActionButton(
-                                    label: 'Print KOT',
-                                    icon: FontAwesomeIcons.print,
-                                    onTap:
-                                        () => menucontroller.showInvoiceDialog(
-                                          context,
-                                          order,
-                                          docId,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 10.h),
-                            // Admin feedback area (display)
-                            Text(
-                              "Admin Feedback:",
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w600,
-                                color: isSeen ? Colors.black : Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 6.h),
-                            Container(
-                              width: double.infinity,
-                              padding: EdgeInsets.all(10.h),
-                              decoration: BoxDecoration(
-                                color:
-                                    isSeen
-                                        ? Colors.grey.shade100
-                                        : Colors.brown.shade700,
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Text(
-                                adminFeedback.isNotEmpty
-                                    ? adminFeedback
-                                    : 'No feedback yet',
-                                style: TextStyle(
-                                  fontSize: 13.sp,
-                                  color:
-                                      isSeen ? Colors.black87 : Colors.white70,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  "৳${order.total.toString()}",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.sp,
+                    color: txtColor,
                   ),
                 ),
+                SizedBox(height: 6.h),
+                _statusChip(order.status),
+              ],
+            ),
+          ],
+        ),
+        trailing: Wrap(
+          spacing: 6.w,
+          children: [
+            _iconButton(
+              onTap: () => _showEditDialog(context, order),
+              icon: FontAwesomeIcons.edit,
+              tooltip: 'Edit',
+            ),
+            _iconButton(
+              onTap: () async {
+                final success = await menucontroller.showInvoiceDialog(
+                  context,
+                  order.raw,
+                  order.id,
+                );
+                if (!success) {
+                  Get.snackbar(
+                    "Error",
+                    "Invoice failed",
+                    backgroundColor: Colors.red,
+                  );
+                  return;
+                }
+
+                // fetch fresh order snapshot before adding sale
+                final snap =
+                    await FirebaseFirestore.instance
+                        .collection('orders')
+                        .doc(order.id)
+                        .get();
+                if (!snap.exists) {
+                  Get.snackbar(
+                    "Error",
+                    "Order not found",
+                    backgroundColor: Colors.red,
+                  );
+                  return;
+                }
+                final updatedOrder = snap.data()!;
+                await salesController.addSale(
+                  updatedOrder,
+                  order.id,
+                  updatedOrder['name'],
+                  updatedOrder['phone'],
+                );
+              },
+              icon: FontAwesomeIcons.print,
+              tooltip: 'Print',
+            ),
+            _iconButton(
+              onTap: () async {
+                final confirm = await _confirmDelete(context);
+                if (confirm == true) {
+                  try {
+                    await controller.deleteOrder(order.id);
+                    Get.snackbar(
+                      'Deleted',
+                      'Order removed successfully',
+                      backgroundColor: Colors.red.shade300,
+                      colorText: Colors.white,
+                    );
+                  } catch (e) {
+                    Get.snackbar(
+                      'Error',
+                      'Delete failed: $e',
+                      backgroundColor: Colors.red.shade300,
+                      colorText: Colors.white,
+                    );
+                  }
+                }
+              },
+              icon: FontAwesomeIcons.trash,
+              tooltip: 'Delete',
+              danger: true,
+            ),
+          ],
+        ),
+        onExpansionChanged: (expanded) async {
+          if (expanded && !order.isSeen) {
+            try {
+              await controller.markSeen(order.id);
+            } catch (e) {
+              Get.snackbar(
+                'Error',
+                'Could not mark order seen: $e',
+                backgroundColor: Colors.red.shade300,
+                colorText: Colors.white,
               );
-            },
-          );
+            }
+          }
         },
+        children: [
+          // Big structured modern layout inside expansion
+          _expandedContent(order),
+          SizedBox(height: 12.h),
+        ],
       ),
     );
   }
 
-  // -------------------------
-  // UI Helper Widgets
-  // -------------------------
+  Widget _expandedContent(OrderModel order) {
+    final bool isSeen = order.isSeen;
+    final txtColor = isSeen ? Colors.black : Colors.white;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header row: Order meta (id, time, prebook)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Order ID: ${order.id}",
+              style: TextStyle(fontSize: 13.sp, color: txtColor),
+            ),
+            if (order.orderTime != null)
+              Text(
+                _dateFormat.format(order.orderTime!),
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: isSeen ? Colors.black54 : Colors.white70,
+                ),
+              ),
+          ],
+        ),
+        SizedBox(height: 8.h),
+        // Two-column area: items list and details
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(10.w),
+          decoration: BoxDecoration(
+            color: isSeen ? Colors.grey.shade50 : Colors.brown.shade700,
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Order meta small line
+              Wrap(
+                spacing: 12.w,
+                runSpacing: 6.h,
+                children: [
+                  _metaChip(
+                    icon: FontAwesomeIcons.bolt,
+                    label: order.orderType,
+                  ),
+                  _metaChip(
+                    icon: FontAwesomeIcons.table,
+                    label: 'Table ${order.tableNo}',
+                  ),
+                  _metaChip(
+                    icon: FontAwesomeIcons.clock,
+                    label:
+                        order.prebookTime != null
+                            ? _dateFormat.format(order.prebookTime!)
+                            : 'No prebook',
+                  ),
+                ],
+              ),
+              SizedBox(height: 10.h),
+              Text(
+                "Items",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                  color: txtColor,
+                ),
+              ),
+              SizedBox(height: 6.h),
+              ...order.items.map((it) => _buildItemRow(it, isSeen)).toList(),
+              Divider(height: 18.h),
+              // Customer info (only for Home Delivery & Prebooking)
+              if (order.orderType == 'Home Delivery' ||
+                  order.orderType == 'Prebooking') ...[
+                Text(
+                  "Customer Info",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.sp,
+                    color: txtColor,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                _infoRow('Name', order.name ?? '—', isSeen),
+                SizedBox(height: 6.h),
+                _infoRow('Phone', order.phone ?? '—', isSeen),
+                SizedBox(height: 6.h),
+                _infoRow('Address', order.address ?? '—', isSeen),
+                SizedBox(height: 12.h),
+              ],
+              // Payment info (always show payment-related fields)
+              Text(
+                "Payment",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                  color: txtColor,
+                ),
+              ),
+              SizedBox(height: 6.h),
+              _infoRow(
+                'Method',
+                order.paymentMethod.isNotEmpty ? order.paymentMethod : 'Cash',
+                isSeen,
+              ),
+              SizedBox(height: 6.h),
+              if (order.transactionId.isNotEmpty)
+                _infoRow('Transaction ID', order.transactionId, isSeen),
+              SizedBox(height: 12.h),
+
+              // Admin Feedback
+              Text(
+                "Admin Feedback",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                  color: txtColor,
+                ),
+              ),
+              SizedBox(height: 6.h),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(10.w),
+                decoration: BoxDecoration(
+                  color: isSeen ? Colors.white : Colors.brown.shade600,
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Text(
+                  order.adminFeedback.isNotEmpty
+                      ? order.adminFeedback
+                      : 'No feedback yet',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    color: isSeen ? Colors.black87 : Colors.white70,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12.h),
+
+              // Status + actions row
+              Row(
+                children: [
+                  _statusChip(order.status),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: _gradientActionButton(
+                      label: 'Change Status',
+                      icon: FontAwesomeIcons.exchangeAlt,
+                      onTap: () => _showEditDialog(Get.context!, order),
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: _gradientActionButton(
+                      label: 'Print KOT',
+                      icon: FontAwesomeIcons.print,
+                      onTap:
+                          () => menucontroller.showInvoiceDialog(
+                            Get.context!,
+                            order.raw,
+                            order.id,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemRow(OrderItem it, bool isSeen) {
+    final String variantLabel =
+        (it.selectedVariant != null && it.selectedVariant!['size'] != null)
+            ? it.selectedVariant!['size'].toString()
+            : '';
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6.h),
+      child: Row(
+        children: [
+          _buildItemImage(it.imgUrl),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "${it.name} ${variantLabel.isNotEmpty ? '• $variantLabel' : ''}",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14.sp,
+                    color: isSeen ? Colors.black : Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  "${it.category}  •  x${it.quantity}",
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: isSeen ? Colors.black54 : Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8.w),
+          Text(
+            "৳${(it.price * it.quantity).toString()}",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13.sp,
+              color: isSeen ? Colors.black : Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildItemImage(String? url) {
     const double size = 48;
     if (url == null || url.isEmpty) {
@@ -440,7 +456,6 @@ class LiveOrdersPage extends StatelessWidget {
         child: Icon(Icons.fastfood, size: 20),
       );
     }
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(8.r),
       child: CachedNetworkImage(
@@ -462,6 +477,52 @@ class LiveOrdersPage extends StatelessWidget {
               color: Colors.grey.shade200,
               child: Icon(Icons.broken_image, size: 20),
             ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value, bool isSeen) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 100.w,
+          child: Text(
+            "$label:",
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 13.sp,
+              color: isSeen ? Colors.black87 : Colors.white,
+            ),
+          ),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13.sp,
+              color: isSeen ? Colors.black87 : Colors.white70,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _metaChip({required IconData icon, required String label}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12.r),
+        color: Colors.white24,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FaIcon(icon, size: 12.sp, color: Colors.white),
+          SizedBox(width: 6.w),
+          Text(label, style: TextStyle(fontSize: 12.sp, color: Colors.white)),
+        ],
       ),
     );
   }
@@ -547,6 +608,10 @@ class LiveOrdersPage extends StatelessWidget {
         bg = Colors.green.shade200;
         label = 'Delivered';
         break;
+      case 'cancelled':
+        bg = Colors.grey.shade400;
+        label = 'Cancelled';
+        break;
       case 'pending':
       default:
         bg = Colors.red.shade200;
@@ -582,14 +647,11 @@ class LiveOrdersPage extends StatelessWidget {
   // -------------------------
   // Dialogs
   // -------------------------
-  Future<void> _showEditDialog(
-    BuildContext context,
-    String docId,
-    Map<String, dynamic> order,
-  ) async {
-    final RxString status = RxString(order['status']?.toString() ?? 'pending');
+  Future<void> _showEditDialog(BuildContext context, OrderModel order) async {
+    final LiveOrdersController c = controller;
+    final RxString status = RxString(order.status);
     final TextEditingController feedbackController = TextEditingController(
-      text: order['adminFeedback']?.toString() ?? '',
+      text: order.adminFeedback,
     );
 
     await Get.dialog(
@@ -634,13 +696,11 @@ class LiveOrdersPage extends StatelessWidget {
             label: const Text('Save'),
             onPressed: () async {
               try {
-                await FirebaseFirestore.instance
-                    .collection('orders')
-                    .doc(docId)
-                    .update({
-                      'status': status.value,
-                      'adminFeedback': feedbackController.text,
-                    });
+                await c.updateStatusAndFeedback(
+                  order.id,
+                  status.value,
+                  feedbackController.text,
+                );
                 Get.back();
                 Get.snackbar(
                   'Success',

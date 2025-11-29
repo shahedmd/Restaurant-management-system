@@ -1,37 +1,44 @@
 // ignore_for_file: avoid_print, deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 
-class AdminCancelledOrdersPage extends StatefulWidget {
-  const AdminCancelledOrdersPage({super.key});
+class AdminCancelledOrdersController extends GetxController {
+  final RxString searchText = ''.obs;
+  final Rx<DateTime> selectedDate = DateTime.now().obs;
 
-  @override
-  State<AdminCancelledOrdersPage> createState() =>
-      _AdminCancelledOrdersPageState();
+  void setSearchText(String value) => searchText.value = value;
+  void setSelectedDate(DateTime date) => selectedDate.value = date;
+
+  Stream<List<DocumentSnapshot>> getCancelledOrdersStream() {
+    return FirebaseFirestore.instance
+        .collection("orders")
+        .where("status", isEqualTo: "cancelled")
+        .orderBy("timestamp", descending: true)
+        .snapshots()
+        .map((snap) => snap.docs);
+  }
 }
 
-class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
-  String searchText = "";
-  DateTime selectedDate = DateTime.now();
+class AdminCancelledOrdersPage extends StatelessWidget {
+  AdminCancelledOrdersPage({super.key});
 
-  Future<void> pickDate() async {
+  final AdminCancelledOrdersController controller = Get.put(
+    AdminCancelledOrdersController(),
+  );
+
+  Future<void> pickDate(BuildContext context) async {
     final DateTime? newDate = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
+      initialDate: controller.selectedDate.value,
       firstDate: DateTime(2023),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-
-    if (newDate != null) {
-      setState(() {
-        selectedDate = newDate;
-      });
-    }
+    if (newDate != null) controller.setSelectedDate(newDate);
   }
 
   @override
@@ -41,7 +48,7 @@ class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          _buildFilterRow(),
+          _buildFilterRow(context),
           Expanded(child: _buildCancelledOrdersStream()),
         ],
       ),
@@ -61,20 +68,15 @@ class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
     );
   }
 
-  Widget _buildFilterRow() {
+  Widget _buildFilterRow(BuildContext context) {
     return Padding(
       padding: EdgeInsets.all(12.w),
       child: Row(
         children: [
-          // Search Field
           Expanded(
             child: TextField(
               keyboardType: TextInputType.number,
-              onChanged: (v) {
-                setState(() {
-                  searchText = v.trim();
-                });
-              },
+              onChanged: controller.setSearchText,
               decoration: InputDecoration(
                 hintText: "Search by Table No...",
                 prefixIcon: const Icon(Icons.search),
@@ -85,25 +87,30 @@ class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
             ),
           ),
           SizedBox(width: 10.w),
-          // Selected Date Display
-          InkWell(
-            onTap: pickDate,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(10.r),
-              ),
-              child: Text(
-                DateFormat('dd MMM yyyy').format(selectedDate),
-                style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w600),
+          Obx(
+            () => InkWell(
+              onTap: () => pickDate(context),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: Text(
+                  DateFormat(
+                    'dd MMM yyyy',
+                  ).format(controller.selectedDate.value),
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ),
           SizedBox(width: 10.w),
-          // Calendar Button
           InkWell(
-            onTap: pickDate,
+            onTap: () => pickDate(context),
             child: Container(
               padding: EdgeInsets.all(10.w),
               decoration: BoxDecoration(
@@ -123,58 +130,61 @@ class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
   }
 
   Widget _buildCancelledOrdersStream() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection("orders")
-          .where("status", isEqualTo: "cancelled")
-          .orderBy("timestamp", descending: true)
-          .snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Expanded(
+      child: Obx(() {
+        final selDate = controller.selectedDate.value;
+        final search = controller.searchText.value;
 
-        final docs = snap.data!.docs;
+        return StreamBuilder<List<DocumentSnapshot>>(
+          stream: controller.getCancelledOrdersStream(),
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        // Filter by selected date
-        final filteredByDate = docs.where((d) {
-          final Timestamp ts = d['timestamp'];
-          final DateTime dt = ts.toDate();
-          return dt.year == selectedDate.year &&
-              dt.month == selectedDate.month &&
-              dt.day == selectedDate.day;
-        }).toList();
+            final docs = snap.data!;
 
-        // Filter by search text
-        final filtered = filteredByDate.where((d) {
-          final tableNo = (d['tableNo'] ?? "").toString();
-          return tableNo.contains(searchText);
-        }).toList();
+            // Filter by date
+            final filteredByDate =
+                docs.where((d) {
+                  final ts = d['timestamp'] as Timestamp;
+                  final dt = ts.toDate();
+                  return dt.year == selDate.year &&
+                      dt.month == selDate.month &&
+                      dt.day == selDate.day;
+                }).toList();
 
-        if (filtered.isEmpty) {
-          return const Center(
-            child: Text(
-              "No Cancelled Orders Found",
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          );
-        }
+            // Filter by search text
+            final filtered =
+                filteredByDate.where((d) {
+                  final tableNo = (d['tableNo'] ?? "").toString();
+                  return tableNo.contains(search);
+                }).toList();
 
-        return ListView.builder(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) {
-            return _buildCancelledOrderCard(filtered[index]);
+            if (filtered.isEmpty) {
+              return const Center(
+                child: Text(
+                  "No Cancelled Orders Found",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+              itemCount: filtered.length,
+              itemBuilder:
+                  (context, index) => _buildCancelledOrderCard(filtered[index]),
+            );
           },
         );
-      },
+      }),
     );
   }
 
   Widget _buildCancelledOrderCard(DocumentSnapshot data) {
-    final Timestamp time = data['timestamp'];
-    final dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(time.toDate());
-
+    final ts = data['timestamp'] as Timestamp;
+    final dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(ts.toDate());
     final items = List.from(data['items'] ?? []);
     final firstItem = items.isNotEmpty ? items[0] : null;
 
@@ -197,12 +207,13 @@ class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
           ClipRRect(
             borderRadius: BorderRadius.circular(14.r),
             child: CachedNetworkImage(
-              imageUrl: firstItem?['imgUrl'] ?? "",
+              imageUrl:
+                  firstItem?['imgUrl'] ?? 'https://via.placeholder.com/80',
               width: 85.w,
               height: 85.w,
               fit: BoxFit.cover,
-              errorWidget: (c, u, e) =>
-                  const Icon(Icons.broken_image, size: 40),
+              errorWidget:
+                  (c, u, e) => const Icon(Icons.broken_image, size: 40),
             ),
           ),
           SizedBox(width: 14.w),
@@ -241,9 +252,7 @@ class _AdminCancelledOrdersPageState extends State<AdminCancelledOrdersPage> {
                     ),
                     SizedBox(width: 6.w),
                     Text(
-                      data['orderType'] == "Prebooking"
-                          ? "Prebook"
-                          : "Inhouse",
+                      data['orderType'] == "Prebooking" ? "Prebook" : "Inhouse",
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: Colors.red,

@@ -10,15 +10,22 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 class TodayOverviewController extends GetxController {
   final RxDouble dailySales = 0.0.obs;
   final RxDouble dailyExpenses = 0.0.obs;
-  final RxDouble dailyCash = 0.0.obs; // 💰 Daily Cash
+  final RxDouble dailyCash = 0.0.obs;
+
   final RxInt dailyCustomers = 0.obs;
+
   final RxInt customerCancelledOrders = 0.obs;
   final RxInt adminCancelledOrders = 0.obs;
-  final RxList<Map<String, dynamic>> last3Orders = <Map<String, dynamic>>[].obs;
+
+  final RxInt deliveredOrdersToday = 0.obs;
+  final RxInt pendingOrdersToday = 0.obs;
+  final RxInt processingOrdersToday = 0.obs;
+
+  final RxList<Map<String, dynamic>> last3DeliveredOrders =
+      <Map<String, dynamic>>[].obs;
 
   final DateFormat dateFormat = DateFormat('yyyy-MM-dd');
 
-  /// Firestore references
   final ordersRef = FirebaseFirestore.instance.collection('orders');
   final cancelledRef = FirebaseFirestore.instance.collection('cancelledOrders');
   final dailyExpensesRef = FirebaseFirestore.instance.collection('daily_expenses');
@@ -26,16 +33,19 @@ class TodayOverviewController extends GetxController {
   void fetchOverview() async {
     final todayStr = dateFormat.format(DateTime.now());
 
-    // --------------------------
-    // Fetch orders today
-    // --------------------------
-    final ordersSnap = await ordersRef
-        .where('status', whereIn: ['pending', 'processing', 'delivered'])
-        .get();
+    // ---------------------------------------------------------
+    // FETCH TODAY ORDERS
+    // ---------------------------------------------------------
+    final ordersSnap = await ordersRef.get();
 
     double sales = 0.0;
     final Set<String> customers = {};
-    final List<Map<String, dynamic>> todayOrders = [];
+    final List<Map<String, dynamic>> todayDeliveredOrders = [];
+
+    int deliveredCount = 0;
+    int pendingCount = 0;
+    int processingCount = 0;
+    int adminCancelled = 0;
 
     for (var doc in ordersSnap.docs) {
       final data = doc.data();
@@ -43,34 +53,53 @@ class TodayOverviewController extends GetxController {
       if (ts == null) continue;
 
       final dateStr = dateFormat.format(ts.toDate());
-      if (dateStr == todayStr) {
-        sales += (data['total'] as num?)?.toDouble() ?? 0.0;
-        final phone = data['phone']?.toString() ?? '';
-        if (phone.isNotEmpty) customers.add(phone);
+      if (dateStr != todayStr) continue;
 
-        todayOrders.add({
+      String status = (data['status'] ?? "").toString().toLowerCase();
+
+      // Count status types
+      if (status == 'delivered') {
+        deliveredCount++;
+        sales += (data['total'] as num?)?.toDouble() ?? 0.0;
+
+        // Add delivered orders to last3DeliveredOrders
+        todayDeliveredOrders.add({
           'tableNo': data['tableNo'] ?? 'N/A',
           'total': data['total'] ?? 0,
           'orderType': data['orderType'] ?? 'N/A',
           'timestamp': ts.toDate(),
         });
       }
+
+      if (status == 'pending') pendingCount++;
+      if (status == 'processing') processingCount++;
+      if (status == 'cancelled') adminCancelled++;
+
+      // Unique customers
+      final phone = data['phone']?.toString() ?? "";
+      if (phone.isNotEmpty) customers.add(phone);
     }
 
-    todayOrders.sort((a, b) => (b['timestamp'] as DateTime)
-        .compareTo(a['timestamp'] as DateTime));
-    final lastOrders = todayOrders.take(3).toList();
+    // Sort descending (newest first)
+    todayDeliveredOrders.sort((a, b) =>
+        (b['timestamp'] as DateTime).compareTo(a['timestamp'] as DateTime));
 
+    last3DeliveredOrders.value = todayDeliveredOrders.take(3).toList();
+
+    // Update GetX values
     dailySales.value = sales;
     dailyCustomers.value = customers.length;
-    last3Orders.value = lastOrders;
 
-    // --------------------------
-    // Cancelled orders today
-    // --------------------------
+    deliveredOrdersToday.value = deliveredCount;
+    pendingOrdersToday.value = pendingCount;
+    processingOrdersToday.value = processingCount;
+    adminCancelledOrders.value = adminCancelled;
+
+    // ---------------------------------------------------------
+    // CUSTOMER CANCELLED (cancelledOrders collection)
+    // ---------------------------------------------------------
     final cancelledSnap = await cancelledRef.get();
     int customerCancelled = 0;
-    int adminCancelled = 0;
 
     for (var doc in cancelledSnap.docs) {
       final data = doc.data();
@@ -81,29 +110,25 @@ class TodayOverviewController extends GetxController {
       if (dateStr == todayStr) {
         if ((data['cancelledByUser'] ?? true) == true) {
           customerCancelled++;
-        } else {
-          adminCancelled++;
         }
       }
     }
 
     customerCancelledOrders.value = customerCancelled;
-    adminCancelledOrders.value = adminCancelled;
 
-    // --------------------------
-    // Daily expenses today (subcollection)
-    // --------------------------
+    // ---------------------------------------------------------
+    // DAILY EXPENSES
+    // ---------------------------------------------------------
     double expenses = 0.0;
     final todayDocRef = dailyExpensesRef.doc(todayStr);
     final itemsSnap = await todayDocRef.collection('items').get();
 
     for (var doc in itemsSnap.docs) {
-      final data = doc.data();
-      expenses += (data['amount'] as num?)?.toDouble() ?? 0.0;
+      expenses += (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
     }
 
     dailyExpenses.value = expenses;
-    dailyCash.value = sales - expenses; // 💰 Compute daily cash
+    dailyCash.value = sales - expenses;
   }
 }
 
@@ -161,6 +186,24 @@ class TodayOverviewPage extends StatelessWidget {
                     FontAwesomeIcons.users,
                   ),
                   _overviewCard(
+                    "Delivered Orders",
+                    controller.deliveredOrdersToday.value.toString(),
+                    [Colors.greenAccent.shade400, Colors.green.shade700],
+                    FontAwesomeIcons.checkCircle,
+                  ),
+                  _overviewCard(
+                    "Pending Orders",
+                    controller.pendingOrdersToday.value.toString(),
+                    [Colors.deepPurpleAccent.shade200, Colors.deepPurple.shade700],
+                    FontAwesomeIcons.clock,
+                  ),
+                  _overviewCard(
+                    "Processing Orders",
+                    controller.processingOrdersToday.value.toString(),
+                    [Colors.blueGrey.shade400, Colors.blueGrey.shade700],
+                    FontAwesomeIcons.gear,
+                  ),
+                  _overviewCard(
                     "Customer Cancelled",
                     controller.customerCancelledOrders.value.toString(),
                     [Colors.orange.shade400, Colors.orange.shade700],
@@ -174,17 +217,23 @@ class TodayOverviewPage extends StatelessWidget {
                   ),
                 ],
               ),
+
               SizedBox(height: 24.h),
+
               Text(
-                "Last 3 Orders Today",
+                "Last 3 Delivered Orders Today",
                 style: TextStyle(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               SizedBox(height: 16.h),
+
               Column(
-                children: controller.last3Orders.map((order) {
+                children: List.generate(controller.last3DeliveredOrders.length, (index) {
+                  final order = controller.last3DeliveredOrders[index];
+                  final serial = index + 1;
+
                   return Card(
                     elevation: 5,
                     shape: RoundedRectangleBorder(
@@ -197,7 +246,7 @@ class TodayOverviewPage extends StatelessWidget {
                         radius: 24.r,
                         backgroundColor: Colors.blue.shade100,
                         child: Text(
-                          order['tableNo'].toString(),
+                          serial.toString(),
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp),
                         ),
                       ),
@@ -211,7 +260,7 @@ class TodayOverviewPage extends StatelessWidget {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
               ),
             ],
           );
@@ -220,7 +269,8 @@ class TodayOverviewPage extends StatelessWidget {
     );
   }
 
-  Widget _overviewCard(String title, String value, List<Color> gradientColors, IconData icon) {
+  Widget _overviewCard(
+      String title, String value, List<Color> gradientColors, IconData icon) {
     return Container(
       width: 180.w,
       height: 250.h,

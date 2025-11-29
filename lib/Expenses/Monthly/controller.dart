@@ -18,7 +18,7 @@ class MonthlyExpensesController extends GetxController {
     fetchMonthlyExpenses();
   }
 
-  // Fetch all monthly expenses
+  // Fetch all monthly expenses reactively
   void fetchMonthlyExpenses() {
     _db
         .collection('monthly_expenses')
@@ -34,10 +34,79 @@ class MonthlyExpensesController extends GetxController {
         };
       }).toList();
 
-      monthlyList.value = months;
+      monthlyList.assignAll(months);
       monthlyTotal.value =
           months.fold<int>(0, (sum, m) => sum + (m['total'] as int));
     });
+  }
+
+  // Add daily amount to monthly collection
+  Future<void> addToMonthly({required int amount, required DateTime date}) async {
+    final monthKey = "${_monthString(date.month)}-${date.year}";
+    final dayKey = "${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
+    final docRef = _db.collection('monthly_expenses').doc(monthKey);
+    final snapshot = await docRef.get();
+
+    if (!snapshot.exists) {
+      await docRef.set({
+        'total': amount,
+        'items': [
+          {'date': dayKey, 'total': amount}
+        ],
+        'createdAt': Timestamp.now(),
+      });
+    } else {
+      final data = snapshot.data()!;
+      int currentTotal = (data['total'] ?? 0) as int;
+      List items = List.from(data['items'] ?? []);
+      int index = items.indexWhere((e) => e['date'] == dayKey);
+
+      if (index >= 0) {
+        items[index]['total'] += amount;
+      } else {
+        items.add({'date': dayKey, 'total': amount});
+      }
+
+      await docRef.update({
+        'total': currentTotal + amount,
+        'items': items,
+      });
+    }
+  }
+
+  // Remove amount from monthly collection (used when deleting daily expense)
+  Future<void> removeFromMonthly({required int amount, required DateTime date}) async {
+    final monthKey = "${_monthString(date.month)}-${date.year}";
+    final dayKey = "${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
+    final docRef = _db.collection('monthly_expenses').doc(monthKey);
+    final snapshot = await docRef.get();
+    if (!snapshot.exists) return;
+
+    final data = snapshot.data()!;
+    int currentTotal = (data['total'] ?? 0) as int;
+    List items = List.from(data['items'] ?? []);
+    int index = items.indexWhere((e) => e['date'] == dayKey);
+
+    if (index >= 0) {
+      items[index]['total'] -= amount;
+      if (items[index]['total'] <= 0) {
+        items.removeAt(index);
+      }
+    }
+
+    await docRef.update({
+      'total': currentTotal - amount,
+      'items': items,
+    });
+  }
+
+  // Helper: month number to string
+  String _monthString(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
   }
 
   // Generate PDF for a specific month
