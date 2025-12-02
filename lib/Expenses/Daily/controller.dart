@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, avoid_types_as_parameter_names
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';

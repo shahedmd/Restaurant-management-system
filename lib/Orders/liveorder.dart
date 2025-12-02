@@ -1,4 +1,4 @@
-// ignore_for_file: use_super_parameters, deprecated_member_use, prefer_const_constructors, use_build_context_synchronously
+// ignore_for_file: use_super_parameters, deprecated_member_use, prefer_const_constructors, use_build_context_synchronously, unnecessary_to_list_in_spreads
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -270,7 +270,7 @@ class LiveOrdersPage extends StatelessWidget {
                   ),
                   _metaChip(
                     icon: FontAwesomeIcons.table,
-                    label: 'Table ${order.tableNo}',
+                    label: 'Tables ${order.tableNo}',
                   ),
                   _metaChip(
                     icon: FontAwesomeIcons.clock,
@@ -521,7 +521,7 @@ class LiveOrdersPage extends StatelessWidget {
         children: [
           FaIcon(icon, size: 12.sp, color: Colors.white),
           SizedBox(width: 6.w),
-          Text(label, style: TextStyle(fontSize: 12.sp, color: Colors.white)),
+          Text(label, style: TextStyle(fontSize: 12.sp, color: Colors.black)),
         ],
       ),
     );

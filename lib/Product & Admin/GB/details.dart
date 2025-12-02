@@ -27,15 +27,18 @@ class GBDetailsPage extends StatelessWidget {
         iconTheme: IconThemeData(color: Colors.white),
         centerTitle: true,
         backgroundColor: const Color(0xFF0C2E69),
-        title: Text(name, style: TextStyle(fontSize: 18.sp, color: Colors.white,)),
+        title: Text(
+          name,
+          style: TextStyle(fontSize: 18.sp, color: Colors.white),
+        ),
         actions: [
           Padding(
-            padding:  EdgeInsets.only(right: 25.w),
+            padding: EdgeInsets.only(right: 25.w),
             child: IconButton(
               icon: const FaIcon(FontAwesomeIcons.filePdf, color: Colors.white),
               onPressed: () => downloadPDF(id, name),
             ),
-          )
+          ),
         ],
       ),
 
@@ -49,7 +52,6 @@ class GBDetailsPage extends StatelessWidget {
         padding: EdgeInsets.all(16.w),
         child: Column(
           children: [
-
             /// 🌟 SUMMARY CARD
             StreamBuilder(
               stream: controller.summary(id),
@@ -78,9 +80,21 @@ class GBDetailsPage extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      summaryItem(FontAwesomeIcons.arrowDown, "Credit", data['credit']),
-                      summaryItem(FontAwesomeIcons.arrowUp, "Debit", data['debit']),
-                      summaryItem(FontAwesomeIcons.balanceScale, "Balance", data['balance']),
+                      summaryItem(
+                        FontAwesomeIcons.arrowDown,
+                        "Credit",
+                        data['credit'],
+                      ),
+                      summaryItem(
+                        FontAwesomeIcons.arrowUp,
+                        "Debit",
+                        data['debit'],
+                      ),
+                      summaryItem(
+                        FontAwesomeIcons.balanceScale,
+                        "Balance",
+                        data['balance'],
+                      ),
                     ],
                   ),
                 );
@@ -106,13 +120,19 @@ class GBDetailsPage extends StatelessWidget {
                     itemBuilder: (_, i) {
                       final t = docs[i].data() as Map;
 
-                      DateTime tDate = t["date"] is DateTime
-                          ? t["date"]
-                          : (t["date"] as dynamic).toDate();
-                      final formattedDate = DateFormat("dd MMM yyyy").format(tDate);
+                      DateTime tDate =
+                          t["date"] is DateTime
+                              ? t["date"]
+                              : (t["date"] as dynamic).toDate();
+                      final formattedDate = DateFormat(
+                        "dd MMM yyyy",
+                      ).format(tDate);
 
                       return Padding(
-                        padding:  EdgeInsets.symmetric(horizontal: 100.w, vertical: 20.h),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 100.w,
+                          vertical: 20.h,
+                        ),
                         child: Container(
                           padding: EdgeInsets.all(12.w),
                           decoration: BoxDecoration(
@@ -165,7 +185,10 @@ class GBDetailsPage extends StatelessWidget {
                               ),
                               Text(
                                 formattedDate,
-                                style: TextStyle(fontSize: 12.sp, color: Colors.blueGrey),
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  color: Colors.blueGrey,
+                                ),
                               ),
                             ],
                           ),
@@ -184,24 +207,49 @@ class GBDetailsPage extends StatelessWidget {
 
   /// PDF download function
   Future<void> downloadPDF(String id, String name) async {
-    final snap = await controller.db
-        .collection("governingBody")
-        .doc(id)
-        .collection("transactions")
-        .orderBy("date")
-        .get();
+    final snap =
+        await controller.db
+            .collection("governingBody")
+            .doc(id)
+            .collection("transactions")
+            .orderBy("date")
+            .get();
 
-    List data = snap.docs.map((d) {
-      DateTime tDate = d["date"] is DateTime ? d["date"] : (d["date"] as dynamic).toDate();
-      return {
-        "date": DateFormat("dd MMM yyyy").format(tDate),
-        "type": d["type"],
-        "amount": d["amount"],
-        "note": d["note"],
-      };
-    }).toList();
+    List data =
+        snap.docs.map((d) {
+          DateTime tDate =
+              d["date"] is DateTime
+                  ? d["date"]
+                  : (d["date"] as dynamic).toDate();
+          return {
+            "date": DateFormat("dd MMM yyyy").format(tDate),
+            "type": d["type"],
+            "amount": d["amount"],
+            "note": d["note"] ?? "",
+          };
+        }).toList();
 
-    final pdfData = await controller.generatePDF(name, data);
+    // Get current balance
+    final summarySnap =
+        await controller.db
+            .collection("governingBody")
+            .doc(id)
+            .collection("transactions")
+            .get();
+    double credit = 0;
+    double debit = 0;
+    for (var doc in summarySnap.docs) {
+      final t = doc.data();
+      if (t["type"] == "credit") credit += t["amount"];
+      if (t["type"] == "debit") debit += t["amount"];
+    }
+    final balance = credit - debit;
+
+    final pdfData = await controller.generatePDF(
+      name,
+      data,
+      balance, // Pass balance here
+    );
 
     final blob = html.Blob([pdfData], 'application/pdf');
     final url = html.Url.createObjectUrlFromBlob(blob);
@@ -210,7 +258,6 @@ class GBDetailsPage extends StatelessWidget {
       ..click();
     html.Url.revokeObjectUrl(url);
   }
-
 }
 
 /// Summary item widget
@@ -221,8 +268,14 @@ Widget summaryItem(IconData icon, String title, dynamic value) {
       SizedBox(height: 4.h),
       Text(title, style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
       SizedBox(height: 2.h),
-      Text(value.toString(),
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.sp)),
+      Text(
+        value.toString(),
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14.sp,
+        ),
+      ),
     ],
   );
 }

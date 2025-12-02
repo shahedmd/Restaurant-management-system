@@ -1,4 +1,5 @@
-// ignore_for_file: avoid_print, deprecated_member_use
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -27,9 +28,8 @@ class AdminCancelledOrdersController extends GetxController {
 class AdminCancelledOrdersPage extends StatelessWidget {
   AdminCancelledOrdersPage({super.key});
 
-  final AdminCancelledOrdersController controller = Get.put(
-    AdminCancelledOrdersController(),
-  );
+  final AdminCancelledOrdersController controller =
+      Get.put(AdminCancelledOrdersController());
 
   Future<void> pickDate(BuildContext context) async {
     final DateTime? newDate = await showDatePicker(
@@ -45,26 +45,23 @@ class AdminCancelledOrdersPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-      appBar: _buildAppBar(),
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 2, 41, 87),
+        elevation: 1,
+        title: const Text(
+          "Admin Cancelled Orders",
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+        ),
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: Column(
         children: [
           _buildFilterRow(context),
+          // Use Expanded only once here
           Expanded(child: _buildCancelledOrdersStream()),
         ],
       ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: const Color.fromARGB(255, 2, 41, 87),
-      elevation: 1,
-      title: const Text(
-        "Admin Cancelled Orders",
-        style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
-      ),
-      centerTitle: true,
-      iconTheme: const IconThemeData(color: Colors.white),
     );
   }
 
@@ -97,9 +94,7 @@ class AdminCancelledOrdersPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10.r),
                 ),
                 child: Text(
-                  DateFormat(
-                    'dd MMM yyyy',
-                  ).format(controller.selectedDate.value),
+                  DateFormat('dd MMM yyyy').format(controller.selectedDate.value),
                   style: TextStyle(
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w600,
@@ -130,56 +125,52 @@ class AdminCancelledOrdersPage extends StatelessWidget {
   }
 
   Widget _buildCancelledOrdersStream() {
-    return Expanded(
-      child: Obx(() {
-        final selDate = controller.selectedDate.value;
-        final search = controller.searchText.value;
+    return Obx(() {
+      final selDate = controller.selectedDate.value;
+      final search = controller.searchText.value;
 
-        return StreamBuilder<List<DocumentSnapshot>>(
-          stream: controller.getCancelledOrdersStream(),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+      return StreamBuilder<List<DocumentSnapshot>>(
+        stream: controller.getCancelledOrdersStream(),
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            final docs = snap.data!;
+          final docs = snap.data!;
 
-            // Filter by date
-            final filteredByDate =
-                docs.where((d) {
-                  final ts = d['timestamp'] as Timestamp;
-                  final dt = ts.toDate();
-                  return dt.year == selDate.year &&
-                      dt.month == selDate.month &&
-                      dt.day == selDate.day;
-                }).toList();
+          // Filter by date
+          final filteredByDate = docs.where((d) {
+            final ts = d['timestamp'] as Timestamp;
+            final dt = ts.toDate();
+            return dt.year == selDate.year &&
+                dt.month == selDate.month &&
+                dt.day == selDate.day;
+          }).toList();
 
-            // Filter by search text
-            final filtered =
-                filteredByDate.where((d) {
-                  final tableNo = (d['tableNo'] ?? "").toString();
-                  return tableNo.contains(search);
-                }).toList();
+          // Filter by search text
+          final filtered = filteredByDate.where((d) {
+            final tableNo = (d['tableNo'] ?? "").toString();
+            return tableNo.contains(search);
+          }).toList();
 
-            if (filtered.isEmpty) {
-              return const Center(
-                child: Text(
-                  "No Cancelled Orders Found",
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-              );
-            }
-
-            return ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-              itemCount: filtered.length,
-              itemBuilder:
-                  (context, index) => _buildCancelledOrderCard(filtered[index]),
+          if (filtered.isEmpty) {
+            return const Center(
+              child: Text(
+                "No Cancelled Orders Found",
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
             );
-          },
-        );
-      }),
-    );
+          }
+
+          return ListView.builder(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+            itemCount: filtered.length,
+            itemBuilder: (context, index) =>
+                _buildCancelledOrderCard(filtered[index]),
+          );
+        },
+      );
+    });
   }
 
   Widget _buildCancelledOrderCard(DocumentSnapshot data) {
@@ -212,8 +203,8 @@ class AdminCancelledOrdersPage extends StatelessWidget {
               width: 85.w,
               height: 85.w,
               fit: BoxFit.cover,
-              errorWidget:
-                  (c, u, e) => const Icon(Icons.broken_image, size: 40),
+              errorWidget: (c, u, e) =>
+                  const Icon(Icons.broken_image, size: 40),
             ),
           ),
           SizedBox(width: 14.w),

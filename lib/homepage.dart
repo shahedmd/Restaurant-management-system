@@ -17,7 +17,7 @@ class _AdminHomepageState extends State<AdminHomepage> {
   @override
   Widget build(BuildContext context) {
     final Controller menuController = Get.put(Controller());
-    final MonthlyExpensesController me = Get.put(MonthlyExpensesController());
+    final MonthlyExpensesController _ = Get.put(MonthlyExpensesController());
 
     return Scaffold(
       body: SizedBox(

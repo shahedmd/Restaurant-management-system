@@ -343,8 +343,9 @@ class Controller extends GetxController {
                                   totalDiscount)
                               .clamp(0.0, double.infinity);
 
-                          final int earnedPoints =
-                              discountedTotal >= 200 ? 1 : 0;
+                          // 2 points for every 100 BDT spent
+                          final int earnedPoints = (discountedTotal ~/ 100) * 2;
+
                           final int newPoints =
                               freshPoints - pointsToUse + earnedPoints;
 

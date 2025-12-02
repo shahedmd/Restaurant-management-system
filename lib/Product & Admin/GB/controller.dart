@@ -7,19 +7,22 @@ import 'package:pdf/widgets.dart' as pw;
 import 'dart:typed_data';
 
 class GBController extends GetxController {
- final db = FirebaseFirestore.instance;
+  final db = FirebaseFirestore.instance;
 
   var bodies = <Map>[].obs;
 
   /// Load all GB members, sorted by createdAt
   Future<void> loadBodies() async {
-    final snap = await db
-        .collection("governingBody")
-        .orderBy("createdAt", descending: false) // first created comes first
-        .get();
+    final snap =
+        await db
+            .collection("governingBody")
+            .orderBy(
+              "createdAt",
+              descending: false,
+            ) // first created comes first
+            .get();
 
-    bodies.value =
-        snap.docs.map((d) => {"id": d.id, ...d.data()}).toList();
+    bodies.value = snap.docs.map((d) => {"id": d.id, ...d.data()}).toList();
   }
 
   /// Add a new GB member
@@ -39,10 +42,16 @@ class GBController extends GetxController {
 
     loadBodies(); // reload after adding
   }
+
   RxBool gbIsloading = false.obs;
 
   Future<void> addTransaction(
-      String id, double amount, String note, String type, DateTime date) async {
+    String id,
+    double amount,
+    String note,
+    String type,
+    DateTime date,
+  ) async {
     try {
       gbIsloading.value = true; // Start loading
 
@@ -50,17 +59,15 @@ class GBController extends GetxController {
           .collection("governingBody")
           .doc(id)
           .collection("transactions")
-          .add({
-        "amount": amount,
-        "note": note,
-        "type": type,
-        "date": date,
-      });
+          .add({"amount": amount, "note": note, "type": type, "date": date});
     } catch (e) {
-      Get.snackbar("Error", e.toString(),
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.redAccent,
-          colorText: Colors.white);
+      Get.snackbar(
+        "Error",
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.redAccent,
+        colorText: Colors.white,
+      );
     } finally {
       gbIsloading.value = false; // Stop loading
     }
@@ -86,51 +93,49 @@ class GBController extends GetxController {
         if (data["type"] == "debit") debit += data["amount"];
       }
 
-      return {
-        "credit": credit,
-        "debit": debit,
-        "balance": credit - debit,
-      };
+      return {"credit": credit, "debit": debit, "balance": credit - debit};
     });
   }
 
   // =============================
   // PDF GENERATOR
-  // =============================
-  Future<Uint8List> generatePDF(String name, List transactions) async {
-    final pdf = pw.Document();
+Future<Uint8List> generatePDF(String name, List transactions, double balance) async {
+  final pdf = pw.Document();
 
-    pdf.addPage(
-      pw.Page(
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text("Governing Body: $name",
-                  style: pw.TextStyle(fontSize: 22)),
-              pw.SizedBox(height: 15),
+  pdf.addPage(
+    pw.Page(
+      build: (context) {
+        return pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text("Governing Body: $name", style: pw.TextStyle(fontSize: 22)),
+            pw.SizedBox(height: 15),
 
-              pw.Text("Transaction History",
-                  style: pw.TextStyle(fontSize: 16)),
-              pw.SizedBox(height: 10),
+            // Show balance at top
+            pw.Text("Current Balance: ${balance.toStringAsFixed(2)} Tk",
+                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 20),
 
-              pw.Table.fromTextArray(
-                headers: ["Date", "Type", "Amount", "Note"],
-                data: transactions
-                    .map((t) => [
-                          t["date"],
-                          t["type"],
-                          t["amount"].toString(),
-                          t["note"]
-                        ])
-                    .toList(),
-              )
-            ],
-          );
-        },
-      ),
-    );
+            pw.Text("Transaction History", style: pw.TextStyle(fontSize: 16)),
+            pw.SizedBox(height: 10),
 
-    return pdf.save();
-  }
+            pw.Table.fromTextArray(
+              headers: ["Date", "Type", "Amount", "Note"],
+              data: transactions.map((t) => [
+                t["date"],
+                t["type"],
+                t["amount"].toString(),
+                t["note"] ?? ""
+              ]).toList(),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
+  return pdf.save();
+}
+
+
 }

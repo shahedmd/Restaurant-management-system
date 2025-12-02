@@ -1,18 +1,23 @@
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use, empty_catches, curly_braces_in_flow_control_structures
 
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+
+
 class TodayOverviewController extends GetxController {
+  // Observables
   final RxDouble dailySales = 0.0.obs;
   final RxDouble dailyExpenses = 0.0.obs;
   final RxDouble dailyCash = 0.0.obs;
-
   final RxInt dailyCustomers = 0.obs;
+  final RxInt totalOrdersToday = 0.obs;
+  final RxDouble avgOrderValue = 0.0.obs;
 
   final RxInt customerCancelledOrders = 0.obs;
   final RxInt adminCancelledOrders = 0.obs;
@@ -21,132 +26,317 @@ class TodayOverviewController extends GetxController {
   final RxInt pendingOrdersToday = 0.obs;
   final RxInt processingOrdersToday = 0.obs;
 
-  final RxList<Map<String, dynamic>> last3DeliveredOrders =
-      <Map<String, dynamic>>[].obs;
+  final RxMap<String, int> bestSellersQty = <String, int>{}.obs;
+  final RxMap<String, double> bestSellersRevenue = <String, double>{}.obs;
+  final RxList<Map<String, dynamic>> topItemsList = <Map<String, dynamic>>[].obs;
 
-  final DateFormat dateFormat = DateFormat('yyyy-MM-dd');
+  // Payment totals
+  final RxDouble cashTotal = 0.0.obs;
+  final RxDouble bkashTotal = 0.0.obs;
+  final RxDouble nagadTotal = 0.0.obs;
+  final RxDouble bankTotal = 0.0.obs;
 
+  // last delivered orders (for UI)
+  final RxList<Map<String, dynamic>> last3DeliveredOrders = <Map<String, dynamic>>[].obs;
+
+  // Firestore refs
   final ordersRef = FirebaseFirestore.instance.collection('orders');
   final cancelledRef = FirebaseFirestore.instance.collection('cancelledOrders');
   final dailyExpensesRef = FirebaseFirestore.instance.collection('daily_expenses');
+  final dailySummaryRef = FirebaseFirestore.instance.collection('daily_summary');
 
-  void fetchOverview() async {
-    final todayStr = dateFormat.format(DateTime.now());
+  // Subscriptions
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _ordersSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _cancelledSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _expensesSub;
 
-    // ---------------------------------------------------------
-    // FETCH TODAY ORDERS
-    // ---------------------------------------------------------
-    final ordersSnap = await ordersRef.get();
+  // Helper to build YYYY-MM-DD key
+  String _todayKeyLocal(DateTime dt) {
+    return '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
 
+  @override
+  void onInit() {
+    super.onInit();
+    loadHybridOverview();
+  }
+
+  @override
+  void onClose() {
+    _ordersSub?.cancel();
+    _cancelledSub?.cancel();
+    _expensesSub?.cancel();
+    super.onClose();
+  }
+
+  /// Main entry: precomputed summary doc fallback to real-time range
+  Future<void> loadHybridOverview() async {
+    final now = DateTime.now();
+    final key = _todayKeyLocal(now);
+
+    try {
+      final doc = await dailySummaryRef.doc(key).get();
+      if (doc.exists && doc.data() != null) {
+        _applySummaryDoc(doc.data()!);
+        _subscribeToOrdersRange(now, realtime: true);
+        _subscribeToCancelledRange(now, realtime: true);
+        _subscribeToDailyExpenses(now); // Real-time expenses
+        return;
+      }
+    } catch (e) {}
+
+    await _subscribeToOrdersRange(now, realtime: true);
+    await _subscribeToCancelledRange(now, realtime: true);
+    await _subscribeToDailyExpenses(now);
+  }
+
+  void _applySummaryDoc(Map<String, dynamic> data) {
+    try {
+      dailySales.value = (data['dailySales'] as num?)?.toDouble() ?? 0.0;
+      dailyExpenses.value = (data['dailyExpenses'] as num?)?.toDouble() ?? 0.0;
+      dailyCash.value = (data['dailyCash'] as num?)?.toDouble() ?? (dailySales.value - dailyExpenses.value);
+      dailyCustomers.value = (data['dailyCustomers'] as num?)?.toInt() ?? 0;
+      totalOrdersToday.value = (data['totalOrders'] as num?)?.toInt() ?? 0;
+      avgOrderValue.value = (data['avgOrderValue'] as num?)?.toDouble() ?? (totalOrdersToday.value > 0 ? dailySales.value / totalOrdersToday.value : 0);
+
+      deliveredOrdersToday.value = (data['deliveredOrders'] as num?)?.toInt() ?? 0;
+      pendingOrdersToday.value = (data['pendingOrders'] as num?)?.toInt() ?? 0;
+      processingOrdersToday.value = (data['processingOrders'] as num?)?.toInt() ?? 0;
+      adminCancelledOrders.value = (data['adminCancelled'] as num?)?.toInt() ?? 0;
+      customerCancelledOrders.value = (data['customerCancelled'] as num?)?.toInt() ?? 0;
+
+      cashTotal.value = (data['payments']?['cash'] as num?)?.toDouble() ?? 0.0;
+      bkashTotal.value = (data['payments']?['bkash'] as num?)?.toDouble() ?? 0.0;
+      nagadTotal.value = (data['payments']?['nagad'] as num?)?.toDouble() ?? 0.0;
+      bankTotal.value = (data['payments']?['bank'] as num?)?.toDouble() ?? 0.0;
+
+      final items = (data['topItems'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+      topItemsList.value = items.map((m) => Map<String, dynamic>.from(m)).toList();
+
+      final last = (data['lastDelivered'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+      last3DeliveredOrders.value = last.map((m) => Map<String, dynamic>.from(m)).toList();
+    } catch (e) {}
+  }
+
+  // ========================= ORDERS =========================
+  Future<void> _subscribeToOrdersRange(DateTime now, {bool realtime = false}) async {
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    await _ordersSub?.cancel();
+
+    final query = ordersRef
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+        .where('timestamp', isLessThan: Timestamp.fromDate(todayEnd));
+
+    if (realtime) {
+      _ordersSub = query.snapshots().listen(
+        (snap) => _computeFromOrdersSnapshot(snap.docs.map((d) => d.data()).toList()),
+        onError: (e) {},
+      );
+    } else {
+      final snap = await query.get();
+      _computeFromOrdersSnapshot(snap.docs.map((d) => d.data()).toList());
+    }
+  }
+
+  void _computeFromOrdersSnapshot(List<Map<String, dynamic>> docs) {
     double sales = 0.0;
     final Set<String> customers = {};
-    final List<Map<String, dynamic>> todayDeliveredOrders = [];
+    int deliveredCount = 0, pendingCount = 0, processingCount = 0, adminCancelled = 0;
+    int totalOrders = docs.length;
 
-    int deliveredCount = 0;
-    int pendingCount = 0;
-    int processingCount = 0;
-    int adminCancelled = 0;
+    double cashSum = 0.0, bkashSum = 0.0, nagadSum = 0.0, bankSum = 0.0;
+    bestSellersQty.clear();
+    bestSellersRevenue.clear();
+    topItemsList.clear();
+    final List<Map<String, dynamic>> deliveredOrders = [];
 
-    for (var doc in ordersSnap.docs) {
-      final data = doc.data();
-      final ts = data['timestamp'] as Timestamp?;
-      if (ts == null) continue;
+    for (final data in docs) {
+      final status = (data['status'] ?? '').toString().toLowerCase();
+      final total = (data['total'] as num?)?.toDouble() ?? 0.0;
 
-      final dateStr = dateFormat.format(ts.toDate());
-      if (dateStr != todayStr) continue;
+      DateTime? ts;
+      final rawTs = data['timestamp'];
+      if (rawTs is Timestamp) ts = rawTs.toDate();
+      else if (rawTs is DateTime) ts = rawTs;
 
-      String status = (data['status'] ?? "").toString().toLowerCase();
-
-      // Count status types
+      // Only count payments for delivered orders
       if (status == 'delivered') {
         deliveredCount++;
-        sales += (data['total'] as num?)?.toDouble() ?? 0.0;
-
-        // Add delivered orders to last3DeliveredOrders
-        todayDeliveredOrders.add({
+        sales += total;
+        deliveredOrders.add({
           'tableNo': data['tableNo'] ?? 'N/A',
-          'total': data['total'] ?? 0,
+          'total': total,
           'orderType': data['orderType'] ?? 'N/A',
-          'timestamp': ts.toDate(),
+          'timestamp': ts,
         });
-      }
 
-      if (status == 'pending') pendingCount++;
-      if (status == 'processing') processingCount++;
-      if (status == 'cancelled') adminCancelled++;
+        final pm = (data['paymentMethod'] ?? '').toString().toLowerCase();
+        switch (pm) {
+          case 'cash':
+            cashSum += total;
+            break;
+          case 'bkash':
+            bkashSum += total;
+            break;
+          case 'nagad':
+            nagadSum += total;
+            break;
+          case 'bank':
+            bankSum += total;
+            break;
+        }
+      } else if (status == 'pending') pendingCount++;
+      else if (status == 'processing') processingCount++;
+      else if (status == 'cancelled') adminCancelled++;
 
-      // Unique customers
-      final phone = data['phone']?.toString() ?? "";
+      final phone = (data['phone'] ?? '').toString();
       if (phone.isNotEmpty) customers.add(phone);
-    }
 
-    // Sort descending (newest first)
-    todayDeliveredOrders.sort((a, b) =>
-        (b['timestamp'] as DateTime).compareTo(a['timestamp'] as DateTime));
-
-    last3DeliveredOrders.value = todayDeliveredOrders.take(3).toList();
-
-    // Update GetX values
-    dailySales.value = sales;
-    dailyCustomers.value = customers.length;
-
-    deliveredOrdersToday.value = deliveredCount;
-    pendingOrdersToday.value = pendingCount;
-    processingOrdersToday.value = processingCount;
-    adminCancelledOrders.value = adminCancelled;
-
-    // ---------------------------------------------------------
-    // CUSTOMER CANCELLED (cancelledOrders collection)
-    // ---------------------------------------------------------
-    final cancelledSnap = await cancelledRef.get();
-    int customerCancelled = 0;
-
-    for (var doc in cancelledSnap.docs) {
-      final data = doc.data();
-      final ts = data['timestamp'] as Timestamp?;
-      if (ts == null) continue;
-
-      final dateStr = dateFormat.format(ts.toDate());
-      if (dateStr == todayStr) {
-        if ((data['cancelledByUser'] ?? true) == true) {
-          customerCancelled++;
+      final items = data['items'] as List<dynamic>?;
+      if (items != null) {
+        for (var raw in items) {
+          if (raw is Map<String, dynamic>) {
+            final name = (raw['name'] ?? '').toString();
+            final qty = (raw['quantity'] as num?)?.toInt() ?? 0;
+            final price = (raw['price'] as num?)?.toDouble() ?? 0.0;
+            if (name.isEmpty) continue;
+            bestSellersQty[name] = (bestSellersQty[name] ?? 0) + qty;
+            bestSellersRevenue[name] = (bestSellersRevenue[name] ?? 0.0) + (price * qty);
+          }
         }
       }
     }
 
-    customerCancelledOrders.value = customerCancelled;
+    final itemsList = bestSellersQty.entries.map((e) {
+      final rev = bestSellersRevenue[e.key] ?? 0.0;
+      return {'name': e.key, 'qty': e.value, 'revenue': rev};
+    }).toList();
+    itemsList.sort((a, b) {
+      final qa = a['qty'] as int;
+      final qb = b['qty'] as int;
+      if (qb != qa) return qb.compareTo(qa);
+      return (b['revenue'] as double).compareTo(a['revenue'] as double);
+    });
 
-    // ---------------------------------------------------------
-    // DAILY EXPENSES
-    // ---------------------------------------------------------
-    double expenses = 0.0;
-    final todayDocRef = dailyExpensesRef.doc(todayStr);
-    final itemsSnap = await todayDocRef.collection('items').get();
+    deliveredOrders.sort((a, b) {
+      final da = a['timestamp'] as DateTime?;
+      final db = b['timestamp'] as DateTime?;
+      if (da == null || db == null) return 0;
+      return db.compareTo(da);
+    });
 
-    for (var doc in itemsSnap.docs) {
-      expenses += (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+    dailySales.value = sales;
+    deliveredOrdersToday.value = deliveredCount;
+    pendingOrdersToday.value = pendingCount;
+    processingOrdersToday.value = processingCount;
+    adminCancelledOrders.value = adminCancelled;
+    totalOrdersToday.value = totalOrders;
+    dailyCustomers.value = customers.length;
+    avgOrderValue.value = totalOrders > 0 ? (sales / totalOrders) : 0.0;
+
+    cashTotal.value = cashSum;
+    bkashTotal.value = bkashSum;
+    nagadTotal.value = nagadSum;
+    bankTotal.value = bankSum;
+
+    topItemsList.value = itemsList;
+    last3DeliveredOrders.value = deliveredOrders.take(3).toList();
+    dailyCash.value = sales - dailyExpenses.value;
+  }
+
+  // ========================= CANCELLED =========================
+  Future<void> _subscribeToCancelledRange(DateTime now, {bool realtime = false}) async {
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    await _cancelledSub?.cancel();
+
+    final q = cancelledRef
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+        .where('timestamp', isLessThan: Timestamp.fromDate(todayEnd));
+
+    if (realtime) {
+      _cancelledSub = q.snapshots().listen((snap) {
+        var cc = 0;
+        for (var d in snap.docs) {
+          final data = d.data();
+          if ((data['cancelledByUser'] ?? true) == true) cc++;
+        }
+        customerCancelledOrders.value = cc;
+      });
+    } else {
+      final snap = await q.get();
+      var cc = 0;
+      for (var d in snap.docs) {
+        final data = d.data();
+        if ((data['cancelledByUser'] ?? true) == true) cc++;
+      }
+      customerCancelledOrders.value = cc;
     }
+  }
 
-    dailyExpenses.value = expenses;
-    dailyCash.value = sales - expenses;
+  // ========================= EXPENSES =========================
+  Future<void> _subscribeToDailyExpenses(DateTime now) async {
+    final key = _todayKeyLocal(now);
+    await _expensesSub?.cancel();
+
+    _expensesSub = dailyExpensesRef.doc(key).collection('items').snapshots().listen((snap) {
+      double expensesSum = 0.0;
+      for (var doc in snap.docs) {
+        expensesSum += (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+      }
+      dailyExpenses.value = expensesSum;
+      dailyCash.value = dailySales.value - expensesSum;
+    });
   }
 }
 
-class TodayOverviewPage extends StatelessWidget {
-  TodayOverviewPage({super.key});
 
-  final TodayOverviewController controller = Get.put(TodayOverviewController());
-  final DateFormat displayFormat = DateFormat('hh:mm a');
+
+class TodayOverviewPage extends StatefulWidget {
+  const TodayOverviewPage({super.key});
+  @override
+  State<TodayOverviewPage> createState() => _TodayOverviewPageState();
+}
+
+class _TodayOverviewPageState extends State<TodayOverviewPage>
+    with SingleTickerProviderStateMixin {
+  final TodayOverviewController ctrl = Get.put(TodayOverviewController());
+  final NumberFormat currencyFormat = NumberFormat.currency(
+    locale: 'en_US',
+    symbol: 'BDT',
+  );
+
+  late final AnimationController _animCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _animCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    controller.fetchOverview();
+    final width = MediaQuery.of(context).size.width;
+    final bool wide = width > 900;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           "Today's Overview",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: const Color.fromARGB(255, 2, 41, 87),
@@ -157,111 +347,111 @@ class TodayOverviewPage extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                spacing: 16.w,
-                runSpacing: 16.h,
+              // Hero cards
+              AnimatedOpacity(
+                opacity: 1.0,
+                duration: const Duration(milliseconds: 500),
+                child: GridView.count(
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: wide ? 4 : 2,
+                  shrinkWrap: true,
+                  crossAxisSpacing: 12.w,
+                  mainAxisSpacing: 12.h,
+                  childAspectRatio: 1.6,
+                  children: [
+                    _heroCard(
+                      title: 'Total Sales',
+                      subtitle: 'Today',
+                      amount: currencyFormat.format(ctrl.dailySales.value),
+                      icon: FontAwesomeIcons.moneyBillWave,
+                      color: Colors.blue,
+                    ),
+                    _heroCard(
+                      title: 'Expenses',
+                      subtitle: 'Today',
+                      amount: currencyFormat.format(ctrl.dailyExpenses.value),
+                      icon: FontAwesomeIcons.moneyCheckDollar,
+                      color: Colors.red,
+                    ),
+                    _heroCard(
+                      title: 'Net Cash',
+                      subtitle: 'Today',
+                      amount: currencyFormat.format(ctrl.dailyCash.value),
+                      icon: FontAwesomeIcons.cashRegister,
+                      color: Colors.green,
+                    ),
+                    _heroCard(
+                      title: 'Total Orders',
+                      subtitle: 'Today',
+                      amount: ctrl.totalOrdersToday.value.toString(),
+                      icon: FontAwesomeIcons.clipboardList,
+                      color: Colors.purple,
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 14.h),
+
+              // Order status row & avg order
+              GridView.count(
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: wide ? 4 : 2,
+                shrinkWrap: true,
+                crossAxisSpacing: 12.w,
+                mainAxisSpacing: 12.h,
+                childAspectRatio: 2.6,
                 children: [
-                  _overviewCard(
-                    "Daily Sales",
-                    "৳${controller.dailySales.value.toStringAsFixed(2)}",
-                    [Colors.blue.shade400, Colors.blue.shade700],
-                    FontAwesomeIcons.moneyBillWave,
+                  _statusPill(
+                    'Delivered',
+                    ctrl.deliveredOrdersToday.value,
+                    Colors.teal,
                   ),
-                  _overviewCard(
-                    "Daily Expenses",
-                    "৳${controller.dailyExpenses.value.toStringAsFixed(2)}",
-                    [Colors.red.shade400, Colors.red.shade700],
-                    FontAwesomeIcons.moneyCheckDollar,
+                  _statusPill(
+                    'Processing',
+                    ctrl.processingOrdersToday.value,
+                    Colors.blue,
                   ),
-                  _overviewCard(
-                    "Daily Cash",
-                    "৳${controller.dailyCash.value.toStringAsFixed(2)}",
-                    [Colors.green.shade400, Colors.green.shade700],
-                    FontAwesomeIcons.cashRegister,
+                  _statusPill(
+                    'Pending',
+                    ctrl.pendingOrdersToday.value,
+                    Colors.deepPurple,
                   ),
-                  _overviewCard(
-                    "Customers Today",
-                    controller.dailyCustomers.value.toString(),
-                    [Colors.purple.shade400, Colors.purple.shade700],
-                    FontAwesomeIcons.users,
-                  ),
-                  _overviewCard(
-                    "Delivered Orders",
-                    controller.deliveredOrdersToday.value.toString(),
-                    [Colors.greenAccent.shade400, Colors.green.shade700],
-                    FontAwesomeIcons.checkCircle,
-                  ),
-                  _overviewCard(
-                    "Pending Orders",
-                    controller.pendingOrdersToday.value.toString(),
-                    [Colors.deepPurpleAccent.shade200, Colors.deepPurple.shade700],
-                    FontAwesomeIcons.clock,
-                  ),
-                  _overviewCard(
-                    "Processing Orders",
-                    controller.processingOrdersToday.value.toString(),
-                    [Colors.blueGrey.shade400, Colors.blueGrey.shade700],
-                    FontAwesomeIcons.gear,
-                  ),
-                  _overviewCard(
-                    "Customer Cancelled",
-                    controller.customerCancelledOrders.value.toString(),
-                    [Colors.orange.shade400, Colors.orange.shade700],
-                    FontAwesomeIcons.userSlash,
-                  ),
-                  _overviewCard(
-                    "Admin Cancelled",
-                    controller.adminCancelledOrders.value.toString(),
-                    [Colors.teal.shade400, Colors.teal.shade700],
-                    FontAwesomeIcons.userShield,
+                  _statusPill(
+                    'Avg Order',
+                    null,
+                    Colors.indigo,
+                    textRight: currencyFormat.format(ctrl.avgOrderValue.value),
                   ),
                 ],
               ),
 
-              SizedBox(height: 24.h),
+              SizedBox(height: 18.h),
 
-              Text(
-                "Last 3 Delivered Orders Today",
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 16.h),
-
-              Column(
-                children: List.generate(controller.last3DeliveredOrders.length, (index) {
-                  final order = controller.last3DeliveredOrders[index];
-                  final serial = index + 1;
-
-                  return Card(
-                    elevation: 5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16.r),
+              // Payment breakdown (left) and top items (right) on wide screens
+              wide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _paymentCard()),
+                        SizedBox(width: 12.w),
+                        Expanded(child: _topItemsCard()),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        _paymentCard(),
+                        SizedBox(height: 12.h),
+                        _topItemsCard(),
+                      ],
                     ),
-                    margin: EdgeInsets.symmetric(vertical: 8.h),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                      leading: CircleAvatar(
-                        radius: 24.r,
-                        backgroundColor: Colors.blue.shade100,
-                        child: Text(
-                          serial.toString(),
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp),
-                        ),
-                      ),
-                      title: Text(
-                        "Table: ${order['tableNo']} • ${order['orderType']}",
-                        style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        "Total: ৳${order['total']} • ${displayFormat.format(order['timestamp'])}",
-                        style: TextStyle(fontSize: 12.sp, color: Colors.grey[700]),
-                      ),
-                    ),
-                  );
-                }),
-              ),
+
+              SizedBox(height: 18.h),
+
+              // Recent delivered
+              _recentDeliveredCard(),
+
+              SizedBox(height: 30.h),
             ],
           );
         }),
@@ -269,49 +459,162 @@ class TodayOverviewPage extends StatelessWidget {
     );
   }
 
-  Widget _overviewCard(
-      String title, String value, List<Color> gradientColors, IconData icon) {
-    return Container(
-      width: 180.w,
-      height: 250.h,
-      padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20.r),
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  // ===================== Helper Widgets =====================
+
+  Widget _heroCard({
+    required String title,
+    required String subtitle,
+    required String amount,
+    required IconData icon,
+    required Color color,
+  }) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn),
+      child: Container(
+        padding: EdgeInsets.all(12.w),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12.r),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: gradientColors.last.withOpacity(0.4),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+        child: Row(
+          children: [
+            FaIcon(icon, color: color, size: 32.sp),
+            SizedBox(width: 12.w),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(title,
+                    style:
+                        TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500)),
+                Text(subtitle,
+                    style:
+                        TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w400)),
+                SizedBox(height: 6.h),
+                Text(amount,
+                    style:
+                        TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusPill(String label, int? value, Color color,
+      {String? textRight}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500)),
+          Text(
+            textRight ?? (value?.toString() ?? '0'),
+            style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _paymentCard() {
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12.r),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FaIcon(icon, size: 30.sp, color: Colors.white),
-          SizedBox(height: 16.h),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 15.sp,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text('Payments', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
           SizedBox(height: 8.h),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22.sp,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          _paymentRow('Cash', ctrl.cashTotal.value),
+          _paymentRow('Bkash', ctrl.bkashTotal.value),
+          _paymentRow('Nagad', ctrl.nagadTotal.value),
+          _paymentRow('Bank', ctrl.bankTotal.value),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentRow(String label, double value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4.h),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(currencyFormat.format(value), style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _topItemsCard() {
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Top Items', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8.h),
+          ...ctrl.topItemsList.take(5).map((item) {
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: 2.h),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(item['name']),
+                  Text('x${item['qty']}'),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _recentDeliveredCard() {
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Recent Delivered', style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8.h),
+          ...ctrl.last3DeliveredOrders.map((order) {
+            final ts = order['timestamp'] as DateTime?;
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: 4.h),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Table: ${order['tableNo']}'),
+                  Text(currencyFormat.format(order['total'] ?? 0.0)),
+                  Text(order['orderType'] ?? ''),
+                  if (ts != null)
+                    Text(DateFormat.Hm().format(ts), style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

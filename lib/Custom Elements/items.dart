@@ -8,6 +8,7 @@ import 'package:restaurant_management/Orders/deliverdorder.dart';
 import 'package:restaurant_management/Orders/liveorder.dart';
 import 'package:restaurant_management/Sales/dailysales.dart';
 import 'package:restaurant_management/Sales/monthlysales.dart';
+import '../Balance/balancepage.dart';
 import '../Expenses/daily.dart';
 import '../Expenses/monthly.dart';
 import '../Orders/admincancelled.dart';
@@ -155,6 +156,11 @@ class SidebarMenu extends StatelessWidget {
             icon: FontAwesomeIcons.productHunt,
             title: "Category",
             page: CategoryPage(controller),
+          ),
+           _menuTile(
+            icon: FontAwesomeIcons.dollarSign,
+            title: "Balance/Accounts",
+            page: BalancePage(),
           ),
         ],
       ),
