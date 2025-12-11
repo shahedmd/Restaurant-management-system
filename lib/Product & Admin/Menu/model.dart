@@ -20,13 +20,16 @@ class MenuVariant {
       };
 }
 
+
+
 class MenuItemModel {
   final String name;
   final String category;
 
   final double? price;
-
   final String imgUrl;
+
+  final String description; // <-- NEW FIELD
 
   final List<MenuVariant>? variants;
 
@@ -39,6 +42,7 @@ class MenuItemModel {
     required this.category,
     this.price,
     required this.imgUrl,
+    required this.description, // <-- ADD HERE
     this.variants,
     this.selectedVariant,
     this.quantity = 1,
@@ -56,8 +60,9 @@ class MenuItemModel {
       category: data['category'] ?? '',
       price: data['price'] != null ? (data['price']).toDouble() : null,
       imgUrl: data['imgUrl'] ?? '',
+      description: data['description'] ?? '', // <-- ADD HERE
       variants: variantList,
-      selectedVariant: null, // UI sets this later
+      selectedVariant: null,
       quantity: data['quantity'] ?? 1,
     );
   }
@@ -67,11 +72,11 @@ class MenuItemModel {
         'category': category,
         'price': price,
         'imgUrl': imgUrl,
+        'description': description, // <-- ADD HERE
         'variants': variants?.map((v) => v.toMap()).toList(),
-
-        // Store selected variant only when saving cart/order
         'selectedVariant': selectedVariant?.toMap(),
-
         'quantity': quantity,
       };
 }
+
+

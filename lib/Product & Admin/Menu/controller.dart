@@ -3,7 +3,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:html' as html;
-
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -69,8 +68,9 @@ class MenuGetxCtrl extends GetxController {
 
       final name = data["name"]?.toString().toLowerCase() ?? "";
       final category = data["category"]?.toString().toLowerCase() ?? "";
+      final description = data["description"]?.toString().toLowerCase() ?? "";
 
-      return name.contains(q) || category.contains(q);
+      return name.contains(q) || category.contains(q) || description.contains(q);
     }).toList();
   }
 
@@ -105,20 +105,25 @@ class MenuGetxCtrl extends GetxController {
   }
 
   // ============================================================
-  // CREATE ITEM — supports both single price and variants
+  // CREATE ITEM — now includes description
   // ============================================================
   Future<void> createItem({
     required String name,
-    int? price, // null when using variants
-    List<Map<String, dynamic>>? variants, // variant list with int price
+    int? price,
+    List<Map<String, dynamic>>? variants,
     required Uint8List imageBytes,
     String? category,
     DateTime? validate,
     required String collection,
+    String description = "",
   }) async {
     final String imageUrl = await uploadToImgbb(imageBytes);
 
-    Map<String, dynamic> data = {"name": name, "imgUrl": imageUrl};
+    Map<String, dynamic> data = {
+      "name": name,
+      "imgUrl": imageUrl,
+      "description": description,
+    };
 
     // Single price
     if (price != null) data["price"] = price;
@@ -133,7 +138,7 @@ class MenuGetxCtrl extends GetxController {
   }
 
   // ============================================================
-  // UPDATE ITEM — supports switching between price/variants
+  // UPDATE ITEM — now includes description
   // ============================================================
   Future<void> updateItem({
     required String docId,
@@ -144,8 +149,13 @@ class MenuGetxCtrl extends GetxController {
     String? category,
     DateTime? validate,
     required String collection,
+    String description = "",
   }) async {
-    Map<String, dynamic> data = {"name": name, "imgUrl": imgUrl};
+    Map<String, dynamic> data = {
+      "name": name,
+      "imgUrl": imgUrl,
+      "description": description,
+    };
 
     // Single-price
     if (price != null) {

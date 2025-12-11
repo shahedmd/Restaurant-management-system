@@ -4,7 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'Menu/controller.dart';
 
 class CategoryPage extends StatefulWidget {
@@ -19,12 +18,22 @@ class _CategoryPageState extends State<CategoryPage> {
   final FirebaseFirestore db = FirebaseFirestore.instance;
   final TextEditingController newCategoryCtrl = TextEditingController();
 
+  /// Save changes to Firestore
+  Future<void> _updateFirestore() async {
+    await db.collection("category").doc("VPSKqsQRbOLyz1aOloSG").update({
+      "categorylist": widget.controller.categories,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const Text("Manage Categories", style: TextStyle(color: Colors.white),),
+        title: const Text(
+          "Manage Categories",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color.fromARGB(255, 2, 41, 87),
       ),
       body: Obx(
@@ -46,6 +55,7 @@ class _CategoryPageState extends State<CategoryPage> {
                       padding: EdgeInsets.symmetric(vertical: 4.h),
                       child: Row(
                         children: [
+                          // Category Name
                           Expanded(
                             child: TextField(
                               controller: editCtrl,
@@ -67,30 +77,57 @@ class _CategoryPageState extends State<CategoryPage> {
                                   );
                                   return;
                                 }
-                                widget.controller.categories[index] =
-                                    val.trim();
-                                await db
-                                    .collection("category")
-                                    .doc("VPSKqsQRbOLyz1aOloSG")
-                                    .update({
-                                      "categorylist":
-                                          widget.controller.categories,
-                                    });
+                                widget.controller.categories[index] = val.trim();
+                                await _updateFirestore();
                                 Get.snackbar("Success", "Category updated");
                               },
                             ),
                           ),
                           SizedBox(width: 6.w),
+
+                          // Move Up
+                          IconButton(
+                            onPressed: index > 0
+                                ? () async {
+                                    final temp =
+                                        widget.controller.categories[index - 1];
+                                    widget.controller.categories[index - 1] =
+                                        widget.controller.categories[index];
+                                    widget.controller.categories[index] = temp;
+                                    await _updateFirestore();
+                                  }
+                                : null,
+                            icon: Icon(FontAwesomeIcons.arrowUp,
+                                size: 16.sp,
+                                color: index > 0
+                                    ? Colors.blue.shade700
+                                    : Colors.grey),
+                          ),
+
+                          // Move Down
+                          IconButton(
+                            onPressed: index < widget.controller.categories.length - 1
+                                ? () async {
+                                    final temp =
+                                        widget.controller.categories[index + 1];
+                                    widget.controller.categories[index + 1] =
+                                        widget.controller.categories[index];
+                                    widget.controller.categories[index] = temp;
+                                    await _updateFirestore();
+                                  }
+                                : null,
+                            icon: Icon(FontAwesomeIcons.arrowDown,
+                                size: 16.sp,
+                                color: index < widget.controller.categories.length - 1
+                                    ? Colors.blue.shade700
+                                    : Colors.grey),
+                          ),
+
+                          // Delete
                           InkWell(
                             onTap: () async {
                               widget.controller.categories.removeAt(index);
-                              await db
-                                  .collection("category")
-                                  .doc("VPSKqsQRbOLyz1aOloSG")
-                                  .update({
-                                    "categorylist":
-                                        widget.controller.categories,
-                                  });
+                              await _updateFirestore();
                               Get.snackbar("Success", "Category deleted");
                             },
                             child: Container(
@@ -159,12 +196,7 @@ class _CategoryPageState extends State<CategoryPage> {
                           return;
                         }
                         widget.controller.categories.add(val);
-                        await db
-                            .collection("category")
-                            .doc("VPSKqsQRbOLyz1aOloSG")
-                            .update({
-                              "categorylist": widget.controller.categories,
-                            });
+                        await _updateFirestore();
                         newCategoryCtrl.clear();
                         Get.snackbar("Success", "Category added");
                       },

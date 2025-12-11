@@ -5,14 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-
 import 'controller.dart';
 
+/// ------------------------------
+/// CREATE MENU DIALOG
+/// ------------------------------
 void showCreateMenuDialog(BuildContext context) {
   final MenuGetxCtrl controller = Get.find();
 
   final nameCtrl = TextEditingController();
   final priceCtrl = TextEditingController();
+  final descriptionCtrl = TextEditingController(); // New description field
+
   RxString selectedCategory =
       (controller.categories.isNotEmpty ? controller.categories.first : "").obs;
   RxList<Map<String, dynamic>> variants = <Map<String, dynamic>>[].obs;
@@ -49,7 +53,7 @@ void showCreateMenuDialog(BuildContext context) {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
 
-                /// CATEGORY
+                // CATEGORY
                 Text("Category",
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
@@ -61,13 +65,6 @@ void showCreateMenuDialog(BuildContext context) {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16.r),
                     color: const Color(0xFFEAF3FF),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                        color: Colors.black.withOpacity(0.08),
-                      ),
-                    ],
                   ),
                   child: DropdownButton<String>(
                     isExpanded: true,
@@ -87,7 +84,7 @@ void showCreateMenuDialog(BuildContext context) {
                 ),
                 SizedBox(height: 20.h),
 
-                /// NAME INPUT
+                // NAME
                 _inputBox(
                   controller: nameCtrl,
                   label: "Item Name",
@@ -95,7 +92,17 @@ void showCreateMenuDialog(BuildContext context) {
                 ),
                 SizedBox(height: 20.h),
 
-                /// SINGLE PRICE INPUT
+                // DESCRIPTION
+                Text("Description",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.sp,
+                        color: Colors.blue.shade600)),
+                SizedBox(height: 6.h),
+                _expandableDescriptionBox(descriptionCtrl),
+                SizedBox(height: 20.h),
+
+                // PRICE
                 _inputBox(
                   controller: priceCtrl,
                   label: "Price (if no variants)",
@@ -104,7 +111,7 @@ void showCreateMenuDialog(BuildContext context) {
                 ),
                 SizedBox(height: 20.h),
 
-                /// VARIANTS
+                // VARIANTS
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -131,7 +138,6 @@ void showCreateMenuDialog(BuildContext context) {
                 ),
                 SizedBox(height: 10.h),
 
-                /// VARIANT CARDS
                 ...variants.asMap().entries.map((entry) {
                   final index = entry.key;
                   final v = entry.value;
@@ -144,13 +150,6 @@ void showCreateMenuDialog(BuildContext context) {
                     decoration: BoxDecoration(
                       color: const Color(0xFFEAF3FF),
                       borderRadius: BorderRadius.circular(18.r),
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                          color: Colors.black.withOpacity(0.08),
-                        ),
-                      ],
                     ),
                     child: Row(
                       children: [
@@ -191,13 +190,12 @@ void showCreateMenuDialog(BuildContext context) {
 
                 SizedBox(height: 20.h),
 
-                /// IMAGE PICKER
+                // IMAGE PICKER
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade600,
                     padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 20.w),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
-                    elevation: 3,
                   ),
                   onPressed: () async {
                     final img = await controller.pickImageWeb();
@@ -230,7 +228,6 @@ void showCreateMenuDialog(BuildContext context) {
               backgroundColor: Colors.blue.shade700,
               padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 12.h),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14.r)),
-              elevation: 2,
             ),
             onPressed: () async {
               if (nameCtrl.text.isEmpty ||
@@ -242,6 +239,7 @@ void showCreateMenuDialog(BuildContext context) {
 
               await controller.createItem(
                 name: nameCtrl.text.trim(),
+                description: descriptionCtrl.text.trim(),
                 price: variants.isEmpty ? int.tryParse(priceCtrl.text.trim()) : null,
                 variants: variants.isNotEmpty ? variants.toList() : null,
                 imageBytes: selectedImage!,
@@ -287,6 +285,37 @@ Widget _inputBox({
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16.r),
         borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
+      ),
+    ),
+  );
+}
+
+Widget _expandableDescriptionBox(TextEditingController controller) {
+  return ConstrainedBox(
+    constraints: BoxConstraints(minHeight: 80.h, maxHeight: 180.h),
+    child: TextField(
+      controller: controller,
+      maxLines: null,
+      expands: false,
+      textAlignVertical: TextAlignVertical.center,
+      decoration: InputDecoration(
+        labelText: "Write description...",
+        alignLabelWithHint: true,
+        filled: true,
+        fillColor: const Color(0xFFEAF3FF),
+        prefixIcon: Icon(FontAwesomeIcons.alignLeft, color: Colors.blue.shade600, size: 14.sp),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: BorderSide(color: Colors.blue.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: BorderSide(color: Colors.blue.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
+        ),
       ),
     ),
   );

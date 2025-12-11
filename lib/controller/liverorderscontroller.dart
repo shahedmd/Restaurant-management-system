@@ -4,7 +4,6 @@ import 'dart:html' as html; // for audio on web
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 class OrderItem {
   final String name;
@@ -21,7 +20,7 @@ class OrderItem {
     required this.category,
     required this.quantity,
     required this.price,
-    required this.selectedVariant,
+    this.selectedVariant,
     this.variants,
   });
 
@@ -89,9 +88,10 @@ class OrderModel {
   factory OrderModel.fromDoc(DocumentSnapshot doc) {
     final data = (doc.data() as Map<String, dynamic>?) ?? {};
     final itemsRaw = (data['items'] as List<dynamic>?) ?? <dynamic>[];
-    final items = itemsRaw
-        .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
-        .toList();
+    final items =
+        itemsRaw
+            .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
 
     return OrderModel(
       id: doc.id,
@@ -112,22 +112,48 @@ class OrderModel {
       raw: data,
     );
   }
+
+  // ✅ copyWith for updates
+  OrderModel copyWith({
+    String? paymentMethod,
+    String? transactionId,
+    String? status,
+    String? adminFeedback,
+    bool? isSeen,
+  }) {
+    return OrderModel(
+      id: id,
+      orderType: orderType,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      name: name,
+      phone: phone,
+      address: address,
+      timestamp: timestamp,
+      prebookSlot: prebookSlot,
+      status: status ?? this.status,
+      tableNo: tableNo,
+      total: total,
+      adminFeedback: adminFeedback ?? this.adminFeedback,
+      isSeen: isSeen ?? this.isSeen,
+      transactionId: transactionId ?? this.transactionId,
+      items: items,
+      raw: raw,
+    );
+  }
 }
 
 class LiveOrdersController extends GetxController {
   final RxList<OrderModel> orders = <OrderModel>[].obs;
   final RxBool loading = false.obs;
 
-  // Audio element for web
-  final html.AudioElement _audioElement = html.AudioElement()
-    ..src =
-        'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' // Use short notification sound
-    ..preload = 'auto';
-
-  // Date formatter
-  final DateFormat dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+  /// Audio notification
+  final html.AudioElement _audioElement =
+      html.AudioElement()
+        ..src = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+        ..preload = 'auto';
 
   late final StreamSubscription<QuerySnapshot> _ordersSub;
+  bool _firstLoad = true;
 
   @override
   void onInit() {
@@ -135,10 +161,8 @@ class LiveOrdersController extends GetxController {
     _startListener();
   }
 
+  /// Start listening to orders in Firestore
   void _startListener() {
-    final todayStart = DateTime.now();
-    final today = DateTime(todayStart.year, todayStart.month, todayStart.day);
-
     final query = FirebaseFirestore.instance
         .collection('orders')
         .where('orderType', whereIn: ['Inhouse', 'Prebooking', 'Home Delivery'])
@@ -148,41 +172,30 @@ class LiveOrdersController extends GetxController {
 
     _ordersSub = query.snapshots().listen(
       (snap) {
-        final mapped = snap.docs
-            .map((d) => OrderModel.fromDoc(d))
-            .where((o) {
-          final ts = o.timestamp?.toDate();
-          if (ts == null) return false;
-          return ts.year == today.year &&
-              ts.month == today.month &&
-              ts.day == today.day;
-        }).toList();
+        final today = DateTime.now();
 
-        // Detect new pending orders for snackbar & sound
+        final mapped =
+            snap.docs.map((d) => OrderModel.fromDoc(d)).where((o) {
+              final ts = o.timestamp?.toDate();
+              if (ts == null) return false;
+              return ts.year == today.year &&
+                  ts.month == today.month &&
+                  ts.day == today.day;
+            }).toList();
+
         for (final o in mapped) {
           final exists = orders.any((e) => e.id == o.id);
-          if (!exists && o.status == 'pending') {
+          // Show notification if it's a new order OR first load
+          if ((!exists && o.status == 'pending') ||
+              (_firstLoad && o.status == 'pending')) {
             _playNotificationSound();
-            Get.snackbar(
-              "New Order",
-              "${o.orderType} order received!\nTable: ${o.tableNo}\nPayment: ${o.paymentMethod}\nTxn ID: ${o.transactionId}",
-              snackPosition: SnackPosition.TOP,
-              backgroundColor: Colors.green.shade400,
-              colorText: Colors.white,
-              duration: const Duration(days: 1),
-              isDismissible: false,
-              mainButton: TextButton(
-                onPressed: () {
-                  if (Get.isSnackbarOpen) Get.back();
-                },
-                child: const Icon(Icons.close, color: Colors.white),
-              ),
-            );
+            _showOrderSnackbar(o);
           }
         }
+        _firstLoad = false;
 
-        // Update observable list
         orders.assignAll(mapped);
+        _firstLoad = false; // First load finished
       },
       onError: (e) {
         loading.value = false;
@@ -196,13 +209,34 @@ class LiveOrdersController extends GetxController {
     );
   }
 
-  // Play short audio notification safely
+  /// Show snackbar notification for a new order
+void _showOrderSnackbar(OrderModel order) {
+  Get.snackbar(
+    "New Order",
+    "${order.orderType} order received!\nTable: ${order.tableNo}\nPayment: ${order.paymentMethod}\nTxn ID: ${order.transactionId}",
+    snackPosition: SnackPosition.TOP,
+    backgroundColor: Colors.green.shade400,
+    colorText: Colors.white,
+    isDismissible: true, // admin can swipe to dismiss
+    duration: const Duration(days: 1), // hack: makes it practically stay until closed
+    mainButton: TextButton(
+      onPressed: () {
+        if (Get.isSnackbarOpen) Get.back(); // closes manually
+      },
+      child: const Icon(Icons.close, color: Colors.white),
+    ),
+  );
+}
+
+
+
+  /// Play notification sound
   Future<void> _playNotificationSound() async {
     try {
       _audioElement.pause();
       _audioElement.currentTime = 0;
       await _audioElement.play();
-      Future.delayed(const Duration(seconds: 2), () {
+      Future.delayed(const Duration(seconds: 3), () {
         _audioElement.pause();
         _audioElement.currentTime = 0;
       });
@@ -211,46 +245,63 @@ class LiveOrdersController extends GetxController {
     }
   }
 
+  /// Mark order as seen
   Future<void> markSeen(String docId) async {
     try {
       await FirebaseFirestore.instance.collection('orders').doc(docId).update({
         'isSeen': true,
       });
+
       final idx = orders.indexWhere((o) => o.id == docId);
       if (idx != -1) {
         final o = orders[idx];
-        orders[idx] = OrderModel(
-          id: o.id,
-          orderType: o.orderType,
-          paymentMethod: o.paymentMethod,
-          name: o.name,
-          phone: o.phone,
-          address: o.address,
-          timestamp: o.timestamp,
-          prebookSlot: o.prebookSlot,
-          status: o.status,
-          tableNo: o.tableNo,
-          total: o.total,
-          adminFeedback: o.adminFeedback,
-          isSeen: true,
-          transactionId: o.transactionId,
-          items: o.items,
-          raw: o.raw,
-        );
+        orders[idx] = o.copyWith(isSeen: true);
       }
     } catch (e) {
       rethrow;
     }
   }
 
+  /// Update status and feedback
   Future<void> updateStatusAndFeedback(
-      String docId, String status, String feedback) async {
+    String docId,
+    String status,
+    String feedback,
+  ) async {
     await FirebaseFirestore.instance.collection('orders').doc(docId).update({
       'status': status,
       'adminFeedback': feedback,
     });
+
+    final idx = orders.indexWhere((o) => o.id == docId);
+    if (idx != -1) {
+      final o = orders[idx];
+      orders[idx] = o.copyWith(status: status, adminFeedback: feedback);
+    }
   }
 
+  /// Update payment info
+  Future<void> updatePaymentInfo(
+    String docId,
+    String paymentMethod,
+    String transactionId,
+  ) async {
+    await FirebaseFirestore.instance.collection('orders').doc(docId).update({
+      'paymentMethod': paymentMethod,
+      'transactionId': transactionId,
+    });
+
+    final idx = orders.indexWhere((o) => o.id == docId);
+    if (idx != -1) {
+      final o = orders[idx];
+      orders[idx] = o.copyWith(
+        paymentMethod: paymentMethod,
+        transactionId: transactionId,
+      );
+    }
+  }
+
+  /// Delete an order
   Future<void> deleteOrder(String docId) async {
     await FirebaseFirestore.instance.collection('orders').doc(docId).delete();
   }

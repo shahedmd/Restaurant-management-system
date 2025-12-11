@@ -2,14 +2,23 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+
+import 'Kitchen Admin/kitchenadmin.dart';
+import 'Users/auth.dart';
+import 'Users/login.dart';
+import 'controller/liverorderscontroller.dart';
 import 'firebase_options.dart';
 import 'homepage.dart';
 
 Future<void> main() async {
- WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // INIT FIREBASE FIRST
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  Get.put(LiveOrdersController(), permanent: true);
+
   runApp(const MyApp());
 }
 
@@ -18,6 +27,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Get.put(AuthController(), permanent: true);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
@@ -39,14 +50,20 @@ class MyApp extends StatelessWidget {
           designSize: Size(widthFinal, heightFinal),
           minTextAdapt: false,
           splitScreenMode: true,
-          builder: (_, child) {
+          builder: (_, __) {
             return GetMaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: ThemeData(iconTheme: IconThemeData(color: Colors.white)),
-              home: child,
+              theme: ThemeData(
+                iconTheme: IconThemeData(color: Colors.white),
+              ),
+              initialRoute: '/',
+              getPages: [
+                GetPage(name: '/', page: () => LoginPage()),
+                GetPage(name: '/admin', page: () => AdminHomepage()),
+                GetPage(name: '/staff', page: () => StaffHomePage()),
+              ],
             );
           },
-          child: AdminHomepage(),
         );
       },
     );

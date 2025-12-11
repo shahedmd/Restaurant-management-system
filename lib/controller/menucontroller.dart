@@ -27,6 +27,9 @@ class Controller extends GetxController {
     );
     final TextEditingController discountController = TextEditingController();
     final TextEditingController pointsToUseController = TextEditingController();
+    final TextEditingController transactionController = TextEditingController(
+      text: order['transactionId'] ?? '',
+    );
 
     final RxString customerName = ''.obs;
     final RxInt customerPoints = 0.obs;
@@ -37,6 +40,19 @@ class Controller extends GetxController {
     final Completer<bool> completer = Completer<bool>();
 
     Timer? debounce;
+
+    // Determine if this is Inhouse order
+    final bool isInhouse = order['orderType'] == 'Inhouse';
+
+    // Available payment methods for Inhouse orders
+    final List<String> paymentMethods = ['Cash', 'Bkash', 'Nagad', 'Bank'];
+    final RxString selectedPaymentMethod = RxString(
+      isInhouse
+          ? (order['paymentMethod'] != null && order['paymentMethod'] != '')
+              ? order['paymentMethod']
+              : 'Cash'
+          : (order['paymentMethod'] ?? 'Cash'),
+    );
 
     // Fetch customer by mobile
     Future<void> fetchCustomerByMobile(String mobile) async {
@@ -115,9 +131,7 @@ class Controller extends GetxController {
                             debounce?.cancel();
                             debounce = Timer(
                               const Duration(milliseconds: 500),
-                              () {
-                                fetchCustomerByMobile(val.trim());
-                              },
+                              () => fetchCustomerByMobile(val.trim()),
                             );
                           },
                         ),
@@ -194,74 +208,97 @@ class Controller extends GetxController {
                             border: OutlineInputBorder(),
                           ),
                         ),
+                        SizedBox(height: 10.h),
+                        // Payment Method (only editable for Inhouse)
+                        DropdownButtonFormField<String>(
+                          value: selectedPaymentMethod.value,
+                          items:
+                              paymentMethods
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text(e),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged:
+                              isInhouse
+                                  ? (val) {
+                                    if (val != null) {
+                                      selectedPaymentMethod.value = val;
+                                    }
+                                  }
+                                  : null,
+                          decoration: const InputDecoration(
+                            labelText: "Payment Method",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        // Transaction ID (only required for Inhouse non-Cash)
+                        if (isInhouse && selectedPaymentMethod.value != 'Cash')
+                          TextField(
+                            controller: transactionController,
+                            decoration: const InputDecoration(
+                              labelText: "Transaction ID",
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
                         SizedBox(height: 12.h),
                         // Calculation summary
-                        // Calculation summary container
                         ValueListenableBuilder<TextEditingValue>(
                           valueListenable: discountController,
                           builder: (context, discountValue, _) {
                             final manualDiscount =
                                 double.tryParse(discountValue.text) ?? 0.0;
+                            final pointsUsed =
+                                int.tryParse(pointsToUseController.text) ?? 0;
+                            final totalDiscount = (manualDiscount + pointsUsed)
+                                .clamp(0.0, originalTotal);
+                            final finalTotal = (originalTotal - totalDiscount)
+                                .clamp(0.0, double.infinity);
 
-                            return ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: pointsToUseController,
-                              builder: (context, pointsValue, _) {
-                                final pointsUsed =
-                                    int.tryParse(pointsValue.text) ?? 0;
+                            computedTotal.value = finalTotal;
 
-                                // Calculate totals
-                                final totalDiscount = (manualDiscount +
-                                        pointsUsed)
-                                    .clamp(0.0, originalTotal);
-                                final finalTotal = (originalTotal -
-                                        totalDiscount)
-                                    .clamp(0.0, double.infinity);
-
-                                // Update reactive variable if needed
-                                computedTotal.value = finalTotal;
-
-                                return Container(
-                                  width: double.infinity,
-                                  padding: EdgeInsets.all(12.h),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(8.r),
+                            return Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.all(12.h),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8.r),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Original Total: BDT ${originalTotal.toStringAsFixed(2)}",
+                                    style: TextStyle(
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "Original Total: BDT ${originalTotal.toStringAsFixed(2)}",
-                                        style: TextStyle(
-                                          fontSize: 13.sp,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(height: 6.h),
-                                      Text(
-                                        "Manual Discount: BDT ${manualDiscount.toStringAsFixed(2)}",
-                                        style: TextStyle(fontSize: 12.sp),
-                                      ),
-                                      SizedBox(height: 6.h),
-                                      Text(
-                                        "Points Used: BDT $pointsUsed",
-                                        style: TextStyle(fontSize: 12.sp),
-                                      ),
-                                      SizedBox(height: 8.h),
-                                      Divider(),
-                                      SizedBox(height: 6.h),
-                                      Text(
-                                        "Final Total: BDT ${finalTotal.toStringAsFixed(2)}",
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
+                                  SizedBox(height: 6.h),
+                                  Text(
+                                    "Manual Discount: BDT ${manualDiscount.toStringAsFixed(2)}",
+                                    style: TextStyle(fontSize: 12.sp),
                                   ),
-                                );
-                              },
+                                  SizedBox(height: 6.h),
+                                  Text(
+                                    "Points Used: BDT $pointsUsed",
+                                    style: TextStyle(fontSize: 12.sp),
+                                  ),
+                                  SizedBox(height: 8.h),
+                                  Divider(),
+                                  SizedBox(height: 6.h),
+                                  Text(
+                                    "Final Total: BDT ${finalTotal.toStringAsFixed(2)}",
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             );
                           },
                         ),
@@ -287,6 +324,18 @@ class Controller extends GetxController {
                           Get.snackbar(
                             "Error",
                             "Please enter mobile & name",
+                            backgroundColor: Colors.red.shade300,
+                            colorText: Colors.white,
+                          );
+                          return;
+                        }
+
+                        if (isInhouse &&
+                            selectedPaymentMethod.value != 'Cash' &&
+                            transactionController.text.trim().isEmpty) {
+                          Get.snackbar(
+                            "Error",
+                            "Transaction ID required for ${selectedPaymentMethod.value}",
                             backgroundColor: Colors.red.shade300,
                             colorText: Colors.white,
                           );
@@ -343,9 +392,7 @@ class Controller extends GetxController {
                                   totalDiscount)
                               .clamp(0.0, double.infinity);
 
-                          // 2 points for every 100 BDT spent
                           final int earnedPoints = (discountedTotal ~/ 100) * 2;
-
                           final int newPoints =
                               freshPoints - pointsToUse + earnedPoints;
 
@@ -355,35 +402,54 @@ class Controller extends GetxController {
                             'points': newPoints,
                             'name': name,
                           });
+
+                          final orderUpdate = {
+                            'status': 'delivered',
+                            'name': name,
+                            'phone': mobile,
+                            'manualDiscount': manualDiscount,
+                            'previousPoint': freshPoints,
+                            'pointsUsed': pointsToUse,
+                            'pointsRemaining': newPoints,
+                            'pointsEarned': earnedPoints,
+                          };
+
+                          if (isInhouse) {
+                            orderUpdate['paymentMethod'] =
+                                selectedPaymentMethod.value;
+                            orderUpdate['transactionId'] =
+                                selectedPaymentMethod.value == 'Cash'
+                                    ? ''
+                                    : transactionController.text.trim();
+                          }
+
                           batch.update(
                             FirebaseFirestore.instance
                                 .collection('orders')
                                 .doc(docId),
-                            {
-                              'status': 'delivered',
-                              'name': name,
-                              'phone': mobile,
-                              'manualDiscount': manualDiscount,
-                              'previousPoint': freshPoints,
-                              'pointsUsed': pointsToUse,
-                              'pointsRemaining': newPoints,
-                              'pointsEarned': earnedPoints,
-                            },
+                            orderUpdate,
                           );
-                          // PDF generation asynchronously
+
                           Future.microtask(
-                            () => printingController.generateInvoicePDF(
-                              order,
-                              discountedTotal,
-                              totalDiscount,
-                              {'name': name, 'mobile': mobile},
-                              {
-                                'originalPoints': freshPoints,
-                                'pointsUsed': pointsToUse,
-                                'pointsEarned': earnedPoints,
-                                'pointsRemaining': newPoints,
-                              },
-                            ),
+                            () => printingController
+                                .generateInvoicePDF(
+                                  order,
+                                  discountedTotal,
+                                  totalDiscount,
+                                  {'name': name, 'mobile': mobile},
+                                  {
+                                    'originalPoints': freshPoints,
+                                    'pointsUsed': pointsToUse,
+                                    'pointsEarned': earnedPoints,
+                                    'pointsRemaining': newPoints,
+                                  },
+                                  paymentMethodOverride:
+                                      selectedPaymentMethod.value,
+                                  transactionIdOverride:
+                                      selectedPaymentMethod.value == 'Cash'
+                                          ? ''
+                                          : transactionController.text.trim(),
+                                ),
                           );
 
                           await batch.commit();
@@ -395,9 +461,7 @@ class Controller extends GetxController {
                             "Customer: $name\nTotal: BDT ${discountedTotal.toStringAsFixed(2)}\nPoints remaining: $newPoints",
                             backgroundColor: Colors.green.shade400,
                             colorText: Colors.white,
-                            duration: const Duration(
-                              days: 1,
-                            ), // persistent until manually closed
+                            duration: const Duration(days: 1),
                           );
                         } catch (e, st) {
                           debugPrint('Invoice generation failed: $e\n$st');

@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "bbadmin": "blue-bite-e8b42"
+  },
+  "targets": {
+    "blue-bite-e8b42": {
+      "hosting": {
+        "bbadmin": [
+          "bluebiteadminpanel"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

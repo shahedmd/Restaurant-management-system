@@ -11,7 +11,6 @@ import 'package:printing/printing.dart';
 class SalesController extends GetxController {
   RxBool isLoading = false.obs;
 
-  /// Add a sale to Firestore
   Future<void> addSale(
     Map<String, dynamic> order,
     String docId,
@@ -27,7 +26,6 @@ class SalesController extends GetxController {
       final String status = order['status']?.toString() ?? "Completed";
       final List items = order['items'] is List ? order['items'] as List : [];
 
-      // Use order timestamp for daily/monthly ID
       final Timestamp orderTime =
           order['timestamp'] is Timestamp ? order['timestamp'] : Timestamp.now();
       final DateTime orderDate = orderTime.toDate();
@@ -57,7 +55,6 @@ class SalesController extends GetxController {
     }
   }
 
-  /// Generate Daily Sales PDF
   Future<void> generateDailySalesPDF(List<Map<String, dynamic>> dailyOrders) async {
     try {
       isLoading.value = true;
